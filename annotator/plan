@@ -1,0 +1,16 @@
+I want a region editor component that lets me do:
+Click adds region component
+Drag point moves region point
+Click on initial point completes region
+External command clears region or part of a region
+External command loads a region or part of a region
+
+
+(0, 0) ---------------------------------- (500, 0)
+
+
+
+
+
+
+(0, 500) ------------------------------- (500, 500)
