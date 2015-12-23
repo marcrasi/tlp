@@ -12,6 +12,10 @@ import Svg.Attributes exposing (..)
 import MouseEvents exposing (..)
 
 
+pointRadius : Int
+pointRadius = 5
+
+
 type State
   = Free
   | Hovering Int
@@ -34,42 +38,58 @@ type alias Model =
 
 
 type Action
-  = ClickPoint Int
-  | ClickCanvas (Int, Int)
-  | EnterPoint Int
-  | ExitPoint Int
-  | MouseDownPoint Int
-  | MouseUpPoint Int
-  | MouseMoveCanvas (Int, Int)
+  = MouseDown (Int, Int)
+  | MouseMove (Int, Int)
+  | MouseUp (Int, Int)
+
+
+getHoverIndex : (Int, Int) -> List (Int, Int) -> Maybe Int
+getHoverIndex (x, y) points =
+  let
+    distances = List.indexedMap (\i (px, py) -> (i, (px-x)*(px-x)+(py-y)*(py-y))) points
+    eligibleDistances = List.filter (\(_, d) -> d <= pointRadius*pointRadius) distances
+    sortedEligibleDistances = List.sortBy (\(_, d) -> d) eligibleDistances
+  in
+    List.head <| List.map (\(i, _) -> i) sortedEligibleDistances
+
+
+setPointPosition : Int -> (Int, Int) -> Model -> Model
+setPointPosition index p model =
+  { model | points = List.indexedMap (\i x -> if i == index then p else x) model.points }
 
 
 update : Action -> Model -> Model
 update action model =
   case action of
-    ClickPoint index ->
-      if index == List.length model.points - 1
-         then { model | closed = True }
-         else model
-    ClickCanvas (x, y) ->
-      { model | points = (x, y) :: model.points, state = Hovering 0 }
-    EnterPoint index ->
-      { model | state = Hovering index }
-    ExitPoint index ->
-      { model | state = Free }
-    MouseDownPoint index ->
-      { model | state = Dragging index }
-    MouseUpPoint index ->
-      { model | state = Hovering index }
-    MouseMoveCanvas (x, y) ->
+    MouseDown (x, y) ->
       case model.state of
-        Dragging index ->
-          let
-            indexedPoints = List.indexedMap (,) model.points
-            newPoints = List.map (\(i, p) -> if i == index then (x, y) else p) indexedPoints
-          in
-            { model | points = newPoints }
+        Hovering index ->
+          { model | state = Dragging index }
         _ ->
           model
+    MouseMove (x, y) ->
+      case model.state of
+        Dragging index ->
+          setPointPosition index (x, y) model
+        _ ->
+          case getHoverIndex (x, y) model.points of
+            Just hoverIndex ->
+              { model | state = Hovering hoverIndex }
+            Nothing ->
+              { model | state = Free }
+    MouseUp (x, y) ->
+      case model.state of
+        Dragging index ->
+          if index == List.length model.points - 1
+             then { model | closed = True, state = Hovering index }
+             else { model | state = Hovering index }
+        Free ->
+          if model.closed
+            then model
+            else { model | points = (x, y) :: model.points, state = Hovering 0 }
+        _ ->
+          model
+
 
 addPointToPathString : (Int, Int) -> String -> String
 addPointToPathString (x, y) pathString =
@@ -85,13 +105,19 @@ closePathString pathString = pathString ++ " Z"
 
 lines : Model -> Svg
 lines model =
-  Svg.path
-    [ d (List.foldl addPointToPathString "" model.points)
-    , fill "none"
-    , stroke "black"
-    , strokeWidth "1"
-    ]
-    []
+  let
+    notClosedPathString = List.foldl addPointToPathString "" model.points
+    maybeClosedPathString = if model.closed
+      then closePathString notClosedPathString
+      else notClosedPathString
+  in
+    Svg.path
+      [ d maybeClosedPathString 
+      , fill "none"
+      , stroke "black"
+      , strokeWidth "2"
+      ]
+      []
 
 
 point : Signal.Address Action -> Int -> Bool -> (Int, Int) -> Svg 
@@ -100,14 +126,9 @@ point address index active (x, y) =
     [ cx (toString x)
     , cy (toString y)
     , r "5"
-    , fill "black"
+    , fill "none"
     , stroke (if active then "blue" else "black")
-    , strokeWidth "1"
-    , onClick (always (Signal.message address (ClickPoint index)))
-    , onMouseOver (always (Signal.message address (EnterPoint index)))
-    , onMouseOut (always (Signal.message address (ExitPoint index)))
-    , onMouseDown (always (Signal.message address (MouseDownPoint index)))
-    , onMouseUp (always (Signal.message address (MouseUpPoint index)))
+    , strokeWidth "2"
     ]
     []
 
@@ -124,7 +145,8 @@ view address model =
   svg
     [ width "500"
     , height "500"
-    , onClick (\v -> Signal.message address (ClickCanvas v))
-    , onMouseMove (\v -> Signal.message address (MouseMoveCanvas v))
+    , onMouseDown (\v -> Signal.message address (MouseDown v))
+    , onMouseMove (\v -> Signal.message address (MouseMove v))
+    , onMouseUp (\v -> Signal.message address (MouseUp v))
     ]
     [ lines model, points address model ]
