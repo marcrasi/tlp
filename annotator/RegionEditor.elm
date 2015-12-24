@@ -1,7 +1,6 @@
 module RegionEditor (..) where
 
 
-import Html
 import List
 import Signal
 import String
@@ -10,6 +9,7 @@ import Svg.Attributes exposing (..)
 
 
 import MouseEvents exposing (..)
+import Path exposing (Path, addPoint, close, setPointPosition, svgPathString)
 
 
 pointRadius : Int
@@ -32,8 +32,14 @@ activeIndex state =
 
 type alias Model =
   { state : State
-  , points : List (Int, Int)
-  , closed : Bool
+  , path : Path
+  }
+
+
+init : Path -> Model
+init path = 
+  { state = Free
+  , path = path 
   }
 
 
@@ -43,19 +49,15 @@ type Action
   | MouseUp (Int, Int)
 
 
-getHoverIndex : (Int, Int) -> List (Int, Int) -> Maybe Int
-getHoverIndex (x, y) points =
+getHoverIndex : (Int, Int) -> Path -> Maybe Int
+getHoverIndex (x, y) path =
   let
-    distances = List.indexedMap (\i (px, py) -> (i, (px-x)*(px-x)+(py-y)*(py-y))) points
+    distances = List.indexedMap (\i (px, py) -> (i, (px-x)*(px-x)+(py-y)*(py-y))) path.points
     eligibleDistances = List.filter (\(_, d) -> d <= pointRadius*pointRadius) distances
     sortedEligibleDistances = List.sortBy (\(_, d) -> d) eligibleDistances
   in
     List.head <| List.map (\(i, _) -> i) sortedEligibleDistances
 
-
-setPointPosition : Int -> (Int, Int) -> Model -> Model
-setPointPosition index p model =
-  { model | points = List.indexedMap (\i x -> if i == index then p else x) model.points }
 
 
 update : Action -> Model -> Model
@@ -70,9 +72,9 @@ update action model =
     MouseMove (x, y) ->
       case model.state of
         Dragging index ->
-          setPointPosition index (x, y) model
+          { model | path = setPointPosition index (x, y) model.path }
         _ ->
-          case getHoverIndex (x, y) model.points of
+          case getHoverIndex (x, y) model.path of
             Just hoverIndex ->
               { model | state = Hovering hoverIndex }
             Nothing ->
@@ -80,44 +82,26 @@ update action model =
     MouseUp (x, y) ->
       case model.state of
         Dragging index ->
-          if index == List.length model.points - 1
-             then { model | closed = True, state = Hovering index }
+          if index == List.length model.path.points - 1
+             then { model | path = close model.path, state = Hovering index }
              else { model | state = Hovering index }
         Free ->
-          if model.closed
+          if model.path.closed
             then model
-            else { model | points = (x, y) :: model.points, state = Hovering 0 }
+            else { model | path = addPoint (x, y) model.path, state = Hovering 0 } 
         _ ->
           model
 
 
-addPointToPathString : (Int, Int) -> String -> String
-addPointToPathString (x, y) pathString =
-  let
-    command = if String.length pathString == 0 then "M" else "L"
-  in
-    pathString ++ " " ++ command ++ " " ++ toString x ++ " " ++ toString y
-
-
-closePathString : String -> String
-closePathString pathString = pathString ++ " Z"
-
-
 lines : Model -> Svg
 lines model =
-  let
-    notClosedPathString = List.foldl addPointToPathString "" model.points
-    maybeClosedPathString = if model.closed
-      then closePathString notClosedPathString
-      else notClosedPathString
-  in
-    Svg.path
-      [ d maybeClosedPathString 
-      , fill "none"
-      , stroke "black"
-      , strokeWidth "2"
-      ]
-      []
+  Svg.path
+    [ d (svgPathString model.path) 
+    , fill "none"
+    , stroke "pink"
+    , strokeWidth "2"
+    ]
+    []
 
 
 point : Signal.Address Action -> Int -> Bool -> (Int, Int) -> Svg 
@@ -127,7 +111,7 @@ point address index active (x, y) =
     , cy (toString y)
     , r "5"
     , fill "none"
-    , stroke (if active then "blue" else "black")
+    , stroke (if active then "blue" else "pink")
     , strokeWidth "2"
     ]
     []
@@ -137,16 +121,24 @@ points : Signal.Address Action -> Model -> Svg
 points address model =
   g
     []
-    (List.indexedMap (\i p -> point address i (Just i == activeIndex model.state) p) model.points)
+    (List.indexedMap (\i p -> point address i (Just i == activeIndex model.state) p) model.path.points)
 
 
-view : Signal.Address Action -> Model -> Html.Html
+view : Signal.Address Action -> Model -> Svg 
 view address model =
-  svg
-    [ width "500"
-    , height "500"
-    , onMouseDown (\v -> Signal.message address (MouseDown v))
-    , onMouseMove (\v -> Signal.message address (MouseMove v))
-    , onMouseUp (\v -> Signal.message address (MouseUp v))
+  g
+    []
+    [ lines model
+    , points address model
+    , rect
+        [ width "500"
+        , height "500"
+        , pointerEvents "visible"
+        , stroke "none"
+        , fill "none"
+        , onMouseDown (\v -> Signal.message address (MouseDown v))
+        , onMouseMove (\v -> Signal.message address (MouseMove v))
+        , onMouseUp (\v -> Signal.message address (MouseUp v))
+        ]
+        []
     ]
-    [ lines model, points address model ]
