@@ -1,4 +1,5 @@
 dist*
+static/html/
 static/tmp/
 static/combined/
 config/client_session_key.aes
