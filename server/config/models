@@ -14,4 +14,25 @@ Comment json -- Adding "json" causes ToJSON and FromJSON instances to be derived
     deriving Eq
     deriving Show
 
+Frame
+    hash Text
+    UniqueHash hash
+    filename Text
+    UniqueFilename filename
+    capturedAt UTCTime
+    direction DirectionId
+    deriving Show
+
+Direction
+    name Text
+    annotations Text
+    intersection IntersectionId
+    UniqueDirectionName intersection name
+    deriving Show
+
+Intersection
+    name Text
+    UniqueIntersectionName name
+    deriving Show
+
  -- By default this file is used in Model.hs (which is imported by Foundation.hs)

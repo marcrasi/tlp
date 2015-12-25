@@ -84,6 +84,9 @@ library
                  , time
                  , case-insensitive
                  , wai
+                 , friday
+                 , friday-juicypixels
+                 , spool
 
 executable         server
     if flag(library-only)

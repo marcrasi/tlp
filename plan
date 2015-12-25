@@ -14,3 +14,11 @@ External command loads a region or part of a region
 
 
 (0, 500) ------------------------------- (500, 500)
+
+
+The server should:
+Serve the ELM application
+Have a database containing information about the image files
+Have a resource letting you list the image files and update their informations
+
+
