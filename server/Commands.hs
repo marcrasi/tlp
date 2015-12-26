@@ -1,5 +1,3 @@
-{-# LANGUAGE BangPatterns #-}
-
 module Commands (importImages) where
 
 import Application

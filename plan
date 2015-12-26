@@ -22,3 +22,7 @@ Have a database containing information about the image files
 Have a resource letting you list the image files and update their informations
 
 
+Move the images to the server static directory.
+Re-import them from there.
+The annotator directory lives on but there is the ./build script that builds all its relevant stuff into server/static/html.
+

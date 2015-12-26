@@ -2,6 +2,7 @@ dist*
 static/html/
 static/tmp/
 static/combined/
+static/images/
 config/client_session_key.aes
 *.hi
 *.o

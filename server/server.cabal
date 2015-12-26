@@ -19,10 +19,13 @@ library
                      Import.NoFoundation
                      Model
                      Settings
-                     Settings.StaticFiles
+                     Handler.ArgumentParser
                      Handler.Common
                      Handler.Home
                      Handler.Comment
+                     Handler.Directions
+                     Handler.Frames
+                     Handler.ResourceResponse
 
     if flag(dev) || flag(library-only)
         cpp-options:   -DDEVELOPMENT

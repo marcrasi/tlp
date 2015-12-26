@@ -14,7 +14,7 @@ Comment json -- Adding "json" causes ToJSON and FromJSON instances to be derived
     deriving Eq
     deriving Show
 
-Frame
+Frame json
     hash Text
     UniqueHash hash
     filename Text
@@ -23,14 +23,14 @@ Frame
     direction DirectionId
     deriving Show
 
-Direction
+Direction json
     name Text
     annotations Text
     intersection IntersectionId
     UniqueDirectionName intersection name
     deriving Show
 
-Intersection
+Intersection json
     name Text
     UniqueIntersectionName name
     deriving Show
