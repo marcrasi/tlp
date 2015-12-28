@@ -80,6 +80,15 @@ buttons address model =
   div [] []
 
 
+frameView : Signal.Address Action -> Model.Frame.Frame -> Model -> Html
+frameView address frame model =
+  div
+    []
+    [ editorWithImage address frame model
+    , buttons address model
+    ]
+
+
 view : Signal.Address Action -> Model -> Html
 view address model =
   case model.loadedFrame of
@@ -88,11 +97,7 @@ view address model =
     Loading ->
       text "Loading..."
     Loaded frame _ ->
-      div
-        []
-        [ editorWithImage address frame model
-        , buttons address model
-        ]
+      frameView address frame model
 
 
 update : Action -> Model -> (Model, Effects.Effects Action)
