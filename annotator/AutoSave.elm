@@ -38,8 +38,9 @@ init : (d -> Task Never (Result String ())) -> (Model d, Effects (Action d))
 init save =
   ( { state = Saved
     , save = save
+    , currentTime = 0
     }
-  , tick Tick
+  , tick Tick 
   )
 
 
@@ -72,10 +73,16 @@ update action model =
       case model.state of
         Changed data lastChangeTime ->
           if currentTime - lastChangeTime > debounce
-            then ({ model | state = Saving, currentTime = currentTime }, Effects.task <| Task.map SaveResult (model.save data))
-            else ({ model | currentTime = currentTime }, none)
+            then
+              ( { model | state = Saving, currentTime = currentTime }
+              , batch
+                  [ Effects.task <| Task.map SaveResult (model.save data)
+                  , tick Tick
+                  ]
+              )
+            else ({ model | currentTime = currentTime }, tick Tick)
         _ ->
-          ({ model | currentTime = currentTime }, none)
+          ({ model | currentTime = currentTime }, tick Tick)
 
 
 view : Model d -> Html

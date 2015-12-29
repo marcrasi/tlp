@@ -36,10 +36,10 @@ type alias Model =
   }
 
 
-init : Model
-init =
+init : List Path -> Model
+init paths =
   { state = NotEditing 
-  , paths = []
+  , paths = paths
   }
 
 
