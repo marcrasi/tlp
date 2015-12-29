@@ -26,3 +26,10 @@ Move the images to the server static directory.
 Re-import them from there.
 The annotator directory lives on but there is the ./build script that builds all its relevant stuff into server/static/html.
 
+
+
+The regions should have their own table in the database.
+Labels should have their own table in the database.
+If a region has any labels, then deleting it should merely mark it as deleted so that the labels are still interpretable.
+If a region has any labels, then modifying it should not be allowed.
+At some point there might need to be a time column in the direction database for when the camera shifts.

@@ -15,6 +15,7 @@ import Svg.Attributes exposing (..)
 import ListUtil
 import Model.Frame
 import Model.Path as Path exposing (Path, svgPathString)
+import Model.DirectionAnnotation exposing (DirectionAnnotation, Region)
 import RegionEditor
 
 
@@ -32,14 +33,14 @@ editingIndex state =
 
 type alias Model =
   { state : State
-  , paths : List Path
+  , annotation : DirectionAnnotation 
   }
 
 
-init : List Path -> Model
-init paths =
+init : DirectionAnnotation -> Model
+init annotation =
   { state = NotEditing 
-  , paths = paths
+  , annotation = annotation
   }
 
 
@@ -88,7 +89,8 @@ regions : Signal.Address Action -> Model -> Svg
 regions address model =
   g
     []
-    (model.paths
+    (model.annotation.regions
+      |> List.map (.path)
       |> List.indexedMap (,)
       |> List.filter (\(i, x) -> Just i /= editingIndex model.state)
       |> List.map (\(i, x) -> region address i x))
@@ -161,17 +163,24 @@ update action model =
         Editing index editorModel ->
           let
             newEditorModel = RegionEditor.update editorAction editorModel
-            newPaths = ListUtil.set index newEditorModel.path model.paths 
+            newRegions = ListUtil.update index (\x -> { x | path = newEditorModel.path }) model.annotation.regions
+            oldAnnotation = model.annotation
           in
-            { model | state = Editing index newEditorModel, paths = newPaths }
+            { model | state = Editing index newEditorModel, annotation = { oldAnnotation | regions = newRegions } } 
         _ ->
           model
     NewRegion ->
-      { model | paths = Path.empty :: model.paths, state = Editing 0 (RegionEditor.init Path.empty) }
+      let
+        oldAnnotation = model.annotation
+      in
+        { model
+        | annotation = { oldAnnotation | regions = (Region Nothing Path.empty) :: model.annotation.regions }
+        , state = Editing 0 (RegionEditor.init Path.empty)
+        }
     StartEdit index ->
-      case ListUtil.get index model.paths of
-        Just targetPath ->
-          { model | state = Editing index (RegionEditor.init targetPath) }
+      case ListUtil.get index model.annotation.regions of
+        Just targetRegion ->
+          { model | state = Editing index (RegionEditor.init targetRegion.path) }
         Nothing ->
           model
     StopEdit ->
@@ -179,5 +188,11 @@ update action model =
     DeleteRegion ->
       case model.state of
         Editing index _ ->
-          { model | paths = ListUtil.remove index model.paths, state = NotEditing }
+          let
+            oldAnnotation = model.annotation
+          in
+            { model
+              | annotation = { oldAnnotation | regions = ListUtil.remove index model.annotation.regions }
+              , state = NotEditing
+              }
         _ -> model 

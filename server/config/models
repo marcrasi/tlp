@@ -23,9 +23,13 @@ Frame json
     direction DirectionId
     deriving Show
 
+Region json
+    direction DirectionId
+    isDeleted Bool
+    value Text
+
 Direction json
     name Text
-    annotations Text
     intersection IntersectionId
     UniqueDirectionName intersection name
     deriving Show

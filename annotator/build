@@ -2,3 +2,4 @@
 
 # Lalala I have no idea what I am doing.
 elm-make editor.elm --output ../server/static/compiled/editor.js
+elm-make labler.elm --output ../server/static/compiled/labler.js
