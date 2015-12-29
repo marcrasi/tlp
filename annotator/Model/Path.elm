@@ -1,6 +1,8 @@
-module Path (Path, addPoint, close, empty, setPointPosition, svgPathString) where
+module Model.Path (Path, addPoint, close, empty, setPointPosition, svgPathString, encode, decoder) where
 
 
+import Json.Decode exposing (..)
+import Json.Encode as E
 import List
 import String
 
@@ -12,6 +14,21 @@ type alias Path =
   { points : List (Int, Int)
   , closed : Bool
   }
+
+
+decoder : Decoder Path
+decoder =
+  object2 Path
+    ("points" := list (tuple2 (,) int int))
+    ("closed" := bool)
+
+
+encode : Path -> Value
+encode path =
+  E.object
+    [ ("points", E.list (List.map (\(x, y) -> E.list [E.int x, E.int y]) path.points))
+    , ("closed", E.bool path.closed)
+    ]
 
 
 empty : Path

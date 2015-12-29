@@ -9,5 +9,6 @@
 /comments CommentR POST
 
 /directions.v1 DirectionsR GET
+/directions.v1/#DirectionId DirectionR GET PUT
 
 /frames.v1 FramesR GET

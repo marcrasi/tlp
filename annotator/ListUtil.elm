@@ -16,3 +16,13 @@ get index list =
 set : Int -> a -> List a -> List a
 set index value list =
   List.indexedMap (\i x -> if i == index then value else x) list
+
+
+{- If `list` has en element at `index`, then removes it.
+   Otherwise, returns `list` unmodified.
+-}
+remove : Int -> List a -> List a
+remove index list =
+  list
+    |> List.indexedMap (,)
+    |> List.filterMap (\(i, x) -> if i == index then Nothing else Just x)

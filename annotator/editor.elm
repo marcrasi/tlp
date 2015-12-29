@@ -1,6 +1,9 @@
 import Debug
 import Effects
+import Json.Decode as D
+import Json.Encode as E
 import Html exposing (..)
+import Html.Events exposing (..)
 import Http
 import List
 import Result exposing (..)
@@ -11,8 +14,15 @@ import Svg.Attributes exposing (..)
 import Task
 
 
+import AutoSave
+import HttpUtil exposing (errorToString)
+import Model.DirectionAnnotation as DirectionAnnotation
 import Model.Frame
 import RegionsEditor
+
+
+directionId : Int
+directionId = 3
 
 
 ourHeight : Int
@@ -25,9 +35,10 @@ ourWidth = 352 * 2
 
 type Action
   = RegionsEditorAction RegionsEditor.Action
-  | NextFrame
+  | AskForFrame (Maybe String)
   | ReceiveNextFrame Model.Frame.Frame String
   | ReceiveError String
+  | AutoSaveAction AutoSave.Action
 
 
 type LoadedFrame
@@ -39,6 +50,7 @@ type LoadedFrame
 type alias Model =
   { loadedFrame : LoadedFrame
   , regionsEditorModel : RegionsEditor.Model
+  , autoSave: AutoSave.Model DirectionAnnotation.DirectionAnnotation
   }
 
 
@@ -50,11 +62,18 @@ maybeNextFrame model =
 
 init : (Model, Effects.Effects Action)
 init =
-  ( { loadedFrame = Loading
-    , regionsEditorModel = RegionsEditor.init
-    }
-  , getNextFrame Nothing
-  )
+  let
+    (autoSaveModel, autoSaveEffects) = AutoSave.init saveDirectionAnnotation
+  in
+    ( { loadedFrame = Loading
+      , regionsEditorModel = RegionsEditor.init
+      , autoSave = autoSaveModel 
+      }
+    , batch
+      [ getNextFrame Nothing
+      , Effects.map AutoSaveAction autoSaveEffects
+      ]
+    )
 
 
 editorWithImage : Signal.Address Action -> Model.Frame.Frame -> Model -> Html
@@ -75,17 +94,85 @@ editorWithImage address frame model =
     ]
 
 
-buttons : Signal.Address Action -> Model -> Html
-buttons address model =
-  div [] []
+navigationButtons : Signal.Address Action -> Model -> Html
+navigationButtons address model =
+  div
+    [ class "col-md-12"
+    ]
+    [ div
+        [ class "btn-group"
+        ]
+        [ button
+            [ class "btn btn-default"
+            , onClick address (AskForFrame Nothing)
+            ]
+            [ text "First Frame"
+            ]
+        , button
+            [ class "btn btn-primary"
+            , onClick address (AskForFrame (maybeNextFrame model)) 
+            ]
+            [ text "Next Frame"
+            ]
+        ]
+    ]
+
+
+editorButtons : Signal.Address Action -> Model -> Html
+editorButtons address model =
+  div
+    [ class "col-md-12"
+    ]
+    [ RegionsEditor.buttons (Signal.forwardTo address RegionsEditorAction) model.regionsEditorModel
+    ]
+
+
+sideBar : Signal.Address Action -> Model -> Html
+sideBar address model =
+  div
+    []
+    [ div
+        [ class "row"
+        ]
+        [ AutoSave.view model.autoSave
+        ]
+    , div
+        [ class "row"
+        ]
+        [ editorButtons address model
+        ]
+    , div
+        [ class "row"
+        ]
+        [ navigationButtons address model
+        ]
+    ]   
 
 
 frameView : Signal.Address Action -> Model.Frame.Frame -> Model -> Html
 frameView address frame model =
   div
-    []
-    [ editorWithImage address frame model
-    , buttons address model
+    [ class "row"
+    ]
+    [ div
+        [ class "col-md-8"
+        ]
+        [ editorWithImage address frame model
+        ]
+    , div
+        [ class "col-md-4"
+        ]
+        [ sideBar address model
+        ]
+    ]
+
+
+rootView : Html -> Html
+rootView html =
+  div
+    [ class "container"
+    ]
+    [ html
     ]
 
 
@@ -93,11 +180,11 @@ view : Signal.Address Action -> Model -> Html
 view address model =
   case model.loadedFrame of
     NotLoading ->
-      text "Nothing is loaded"
+      rootView (text "Nothing is loaded")
     Loading ->
-      text "Loading..."
+      rootView (text "Loading...")
     Loaded frame _ ->
-      frameView address frame model
+      rootView (frameView address frame model)
 
 
 update : Action -> Model -> (Model, Effects.Effects Action)
@@ -107,17 +194,31 @@ update action model =
       ( { model | regionsEditorModel = RegionsEditor.update regionsEditorAction model.regionsEditorModel }
       , Effects.none
       )
-    NextFrame -> ({ model | loadedFrame = Loading }, getNextFrame <| maybeNextFrame model)
+    AskForFrame nextFrame -> (model, getNextFrame nextFrame)
     ReceiveNextFrame frame nextFrame -> ({ model | loadedFrame = Loaded frame nextFrame }, Effects.none)
     ReceiveError _ -> (model, Effects.none)
+    AutoSaveAction autoSaveAction ->
+      let
+        (autoSaveModel, autoSaveEffects) = AutoSave.update autoSaveAction model.autoSave
+      in
+        ({ model | autoSave = autoSaveModel }, Effects.map AutoSaveAction autoSaveEffects)
 
 
 getNextFrame : Maybe String -> Effects.Effects Action
 getNextFrame nextFrame =
-  Http.get Model.Frame.responseDecoder "/frames.v1?q=direction&directionId=3&limit=1"
-    |> Task.toResult
-    |> Task.map interpretFrameResponse
-    |> Effects.task
+  let
+    startQueryParam = case nextFrame of
+      Just justNextFrame ->
+        "&start=" ++ justNextFrame
+      Nothing ->
+        ""
+  in
+    Http.get
+      Model.Frame.responseDecoder
+      ("/frames.v1?q=direction&directionId=" ++ (toString directionId) ++ "&limit=1" ++ startQueryParam)
+      |> Task.toResult
+      |> Task.map interpretFrameResponse
+      |> Effects.task
 
 
 interpretFrameResponse : Result Http.Error Model.Frame.FrameResponse -> Action
@@ -128,11 +229,19 @@ interpretFrameResponse maybeFrameResponse =
         Just frame -> ReceiveNextFrame frame frameResponse.paginationNext
         Nothing -> ReceiveError "Response has no frames in it."
     Err error ->
-      case error of
-        Http.BadResponse _ errorString -> ReceiveError errorString
-        Http.NetworkError -> ReceiveError "NetworkError"
-        Http.Timeout -> ReceiveError "Timeout"
-        Http.UnexpectedPayload errorString -> ReceiveError errorString
+      ReceiveError (errorToString error)
+
+
+saveDirectionAnnotation : DirectionAnnotation -> Task.Task Task.Never (Result String ())
+saveDirectionAnnotation data =
+  Http.send
+    Http.defaultSettings
+    { verb = "PUT"
+    , url = ("directions.v1/" ++ (toString directionId))
+    , body = Http.string E.encode 0 ((E.object [("annotations", E.encode 0 (DirectionAnnotation.encode data))]))
+    }
+    |> Http.fromJson D.value
+    |> Task.map (formatError errorToString)
 
 
 app =

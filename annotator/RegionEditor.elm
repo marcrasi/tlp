@@ -9,7 +9,7 @@ import Svg.Attributes exposing (..)
 
 
 import MouseEvents exposing (..)
-import Path exposing (Path, addPoint, close, setPointPosition, svgPathString)
+import Model.Path exposing (Path, addPoint, close, setPointPosition, svgPathString)
 
 
 pointRadius : Int
@@ -131,8 +131,8 @@ view address model =
     [ lines model
     , points address model
     , rect
-        [ width "500"
-        , height "500"
+        [ width "100%"
+        , height "100%"
         , pointerEvents "visible"
         , stroke "none"
         , fill "none"
