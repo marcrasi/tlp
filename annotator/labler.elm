@@ -3,6 +3,7 @@ import Effects
 import Html exposing (..)
 import Html.Events exposing (..)
 import Http
+import Result exposing (formatError)
 import StartApp
 import Svg
 import Svg.Attributes exposing (..)
@@ -13,15 +14,18 @@ import AutoSave
 import Constants exposing (directionId, ourHeight, ourWidth)
 import FrameNavigator.Component as FrameNavigator
 import HttpUtil exposing (errorToString)
+import Json.Decode as D
+import Json.Encode as E
 import Model.DirectionAnnotation as DirectionAnnotation exposing (DirectionAnnotation)
 import Model.Frame exposing (Frame)
+import Model.Labels as Labels exposing (Labels)
 import RegionsLabler
 
 
 type Action
   = FrameNavigatorAction FrameNavigator.Action
   | RegionsLablerAction Int RegionsLabler.Action 
-  | AutoSaveAction Int (AutoSave.Action Int)
+  | AutoSaveAction Int (AutoSave.Action Labels)
   | ReceiveAnnotation DirectionAnnotation
   | ReceiveError String
 
@@ -34,7 +38,7 @@ type LoadedAnnotation
 type alias Model =
   { frameNavigator : FrameNavigator.Model
   , loadedAnnotation : LoadedAnnotation
-  , regionsLablers : Dict Int (RegionsLabler.Model, AutoSave.Model Int)
+  , regionsLablers : Dict Int (RegionsLabler.Model, AutoSave.Model Labels)
   , error : Maybe String
   }
 
@@ -124,7 +128,7 @@ view address model =
     case (FrameNavigator.maybeFrame model.frameNavigator, model.loadedAnnotation, maybeError) of
       (_, _, Just error) ->
         rootView (text ("Error: " ++ error))
-      (Just frame, LoadedAnnotation _, _) ->
+      (Just (frame, _), LoadedAnnotation _, _) ->
         case Dict.get frame.id model.regionsLablers of
           Just (regionsLablerModel, _) ->
             rootView (frameView address frame regionsLablerModel model)
@@ -137,14 +141,14 @@ view address model =
 maybeInitializeRegionLabler : Model -> (Model, Effects.Effects Action)
 maybeInitializeRegionLabler model =
   case (FrameNavigator.maybeFrame model.frameNavigator, model.loadedAnnotation) of
-    (Just frame, LoadedAnnotation annotation) ->
+    (Just (frame, initialLabels), LoadedAnnotation annotation) ->
       case Dict.get frame.id model.regionsLablers of
         Just _ ->
           (model, Effects.none)
         Nothing ->
           let
-            (autoSaveModel, autoSaveEffects) = AutoSave.init (\x -> Task.succeed (Result.Ok ()))
-            regionsLablerModel = RegionsLabler.init annotation
+            (autoSaveModel, autoSaveEffects) = AutoSave.init (saveLabels frame.id)
+            regionsLablerModel = RegionsLabler.init annotation initialLabels
           in
             ( { model | regionsLablers = Dict.insert frame.id (regionsLablerModel, autoSaveModel) model.regionsLablers }
             , Effects.map (AutoSaveAction frame.id) autoSaveEffects
@@ -173,9 +177,39 @@ update action model =
     ReceiveError error ->
       ({ model | error = Just error }, Effects.none)
     RegionsLablerAction frameId regionsLablerAction ->
-      ({ model | regionsLablers = Dict.update frameId (Maybe.map (\(regionsLablerModel, x) -> (RegionsLabler.update regionsLablerAction regionsLablerModel, x))) model.regionsLablers }, Effects.none)
-    _ ->
-      (model, Effects.none)
+      let
+        maybeUpdateResult =
+          model.regionsLablers
+            |> Dict.get frameId
+            |> Maybe.map (\(x, y) -> (RegionsLabler.update regionsLablerAction x, y))
+            |> Maybe.map (\(x, y) -> (x, AutoSave.update (AutoSave.DataChange x.labels) y))
+        updatedRegionsLablers =
+          maybeUpdateResult
+            |> Maybe.map (\(x, (y, z)) -> Dict.insert frameId (x, y) model.regionsLablers)
+            |> Maybe.withDefault model.regionsLablers
+        autoSaveEffects =
+          maybeUpdateResult
+            |> Maybe.map (\(_, (_, x)) -> x)
+            |> Maybe.withDefault Effects.none
+      in
+        ({ model | regionsLablers = updatedRegionsLablers }, Effects.map (AutoSaveAction frameId) autoSaveEffects) 
+    AutoSaveAction frameId autoSaveAction ->
+      -- TODO: Should remove successfully saved things from dict, to avoid leaking memory.
+      let
+        maybeUpdateResult =
+          model.regionsLablers 
+            |> Dict.get frameId
+            |> Maybe.map (\(x, y) -> (x, AutoSave.update autoSaveAction y))
+        updatedRegionsLablers =
+          maybeUpdateResult
+            |> Maybe.map (\(x, (y, z)) -> Dict.insert frameId (x, y) model.regionsLablers)
+            |> Maybe.withDefault model.regionsLablers
+        autoSaveEffects =
+          maybeUpdateResult
+            |> Maybe.map (\(_, (_, x)) -> x)
+            |> Maybe.withDefault Effects.none
+      in
+        ({ model | regionsLablers = updatedRegionsLablers }, Effects.map (AutoSaveAction frameId) autoSaveEffects) 
 
 
 getDirection : Effects.Effects Action
@@ -193,6 +227,21 @@ interpretDirectionResponse result =
       ReceiveAnnotation directionAnnotation
     Err error ->
       ReceiveError (errorToString error)
+
+
+saveLabels : Int -> Labels -> Task.Task Effects.Never (Result String ())
+saveLabels frameId labels =
+  Http.send
+    Http.defaultSettings
+    { verb = "PUT"
+    , headers = []
+    , url = ("/frames.v1/" ++ (toString frameId))
+    , body = Http.string (E.encode 0 (Labels.encodeLabels labels))
+    }
+    |> Http.fromJson D.value
+    |> Task.toResult
+    |> Task.map (formatError errorToString)
+    |> Task.map (Result.map (\_ -> ()))
 
 
 app =

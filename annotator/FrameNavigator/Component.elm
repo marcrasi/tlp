@@ -20,18 +20,19 @@ import Task
 
 import HttpUtil exposing (errorToString)
 import Model.Frame exposing (Frame)
+import Model.Labels as Labels exposing (Labels)
 
 
 type Action
   = AskForFrame (Maybe String)
-  | ReceiveFrame Frame String
+  | ReceiveFrame Frame Labels String
   | ReceiveError String
 
 
 type LoadedFrame
   = Loading
   | LoadError String
-  | Loaded Frame String 
+  | Loaded Frame Labels String 
 
 
 type alias Model =
@@ -47,17 +48,17 @@ maybeError model =
     _ -> Nothing
 
 
-maybeFrame : Model -> Maybe Frame 
+maybeFrame : Model -> Maybe (Frame, Labels)
 maybeFrame model =
   case model.loadedFrame of
-    Loaded frame _ -> Just frame 
+    Loaded frame labels _ -> Just (frame, labels)
     _ -> Nothing
 
 
 maybePaginationNext : Model -> Maybe String
 maybePaginationNext model =
   case model.loadedFrame of
-    Loaded _ paginationNext -> Just paginationNext
+    Loaded _ _ paginationNext -> Just paginationNext
     _ -> Nothing
 
 
@@ -97,8 +98,8 @@ update action model =
   case action of
     AskForFrame paginationNext ->
       (model, getNextFrame model.directionId paginationNext)
-    ReceiveFrame frame paginationNext ->
-      ({ model | loadedFrame = Loaded frame paginationNext }, Effects.none)
+    ReceiveFrame frame labels paginationNext ->
+      ({ model | loadedFrame = Loaded frame labels paginationNext }, Effects.none)
     ReceiveError error ->
       ({ model | loadedFrame = LoadError error }, Effects.none)
 
@@ -126,7 +127,7 @@ interpretFrameResponse maybeFrameResponse =
   case maybeFrameResponse of
     Ok frameResponse ->
       case List.head frameResponse.elements of
-        Just frame -> ReceiveFrame frame frameResponse.paginationNext
+        Just frame -> ReceiveFrame frame frameResponse.labels frameResponse.paginationNext
         Nothing -> ReceiveError "Response has no frames in it."
     Err error ->
       ReceiveError (errorToString error)

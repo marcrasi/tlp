@@ -150,7 +150,7 @@ view address model =
     case (FrameNavigator.maybeFrame model.frameNavigator, model.loadedRegions, maybeError) of
       (_, _, Just error) ->
         rootView (text ("Error: " ++ error))
-      (Just frame, LoadedRegions regionsEditorModel, _) ->
+      (Just (frame, _), LoadedRegions regionsEditorModel, _) ->
         rootView (frameView address frame regionsEditorModel model)
       _ ->
         rootView (text "Loading...")

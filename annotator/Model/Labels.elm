@@ -20,6 +20,13 @@ encodeLabel label =
     ]
 
 
+labelDecoder : Decoder Label
+labelDecoder =
+  object2 Label
+    ("region" := int)
+    ("value" := string)
+
+
 type alias Labels =
   { labels : List Label
   }
@@ -28,3 +35,9 @@ type alias Labels =
 encodeLabels : Labels -> Value
 encodeLabels labels =
   E.object [("labels", E.list (List.map encodeLabel labels.labels))]
+
+
+linkedDecoder : Decoder Labels
+linkedDecoder =
+  object1 Labels
+    (at ["linked", "labels.v1"] (list labelDecoder))

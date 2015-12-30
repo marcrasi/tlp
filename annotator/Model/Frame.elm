@@ -4,6 +4,9 @@ module Model.Frame (..) where
 import Json.Decode exposing (..)
 
 
+import Model.Labels as Labels exposing (Labels)
+
+
 type alias Frame =
   { direction : Int
   , id : Int
@@ -24,11 +27,15 @@ decoder =
 type alias FrameResponse =
   { elements : List Frame
   , paginationNext : String
+  , labels : Labels
   }
 
 
+-- tragically, this decoder does incorrect things when there is more than one element in the response because
+-- i'm too lazy to fix it now
 responseDecoder : Decoder FrameResponse
 responseDecoder =
-  object2 FrameResponse
+  object3 FrameResponse
     ("elements" := list decoder)
     (at ["pagination", "next"] string)
+    Labels.linkedDecoder

@@ -24,10 +24,10 @@ type alias Model =
   }
 
 
-init : DirectionAnnotation -> Model
-init annotation =
+init : DirectionAnnotation -> Labels -> Model
+init annotation labels =
   { annotation = annotation
-  , labels = Labels []
+  , labels = labels 
   }
 
 
