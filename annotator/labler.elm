@@ -1,3 +1,4 @@
+import Dict exposing (Dict)
 import Effects
 import Html exposing (..)
 import Html.Events exposing (..)
@@ -8,6 +9,7 @@ import Svg.Attributes exposing (..)
 import Task
 
 
+import AutoSave
 import Constants exposing (directionId, ourHeight, ourWidth)
 import FrameNavigator.Component as FrameNavigator
 import HttpUtil exposing (errorToString)
@@ -18,18 +20,21 @@ import RegionsLabler
 
 type Action
   = FrameNavigatorAction FrameNavigator.Action
+  | RegionsLablerAction Int RegionsLabler.Action 
+  | AutoSaveAction Int (AutoSave.Action Int)
   | ReceiveAnnotation DirectionAnnotation
   | ReceiveError String
 
 
 type LoadedAnnotation
   = LoadingAnnotation
-  | LoadedAnnotation RegionsLabler.Model 
+  | LoadedAnnotation DirectionAnnotation 
 
 
 type alias Model =
   { frameNavigator : FrameNavigator.Model
   , loadedAnnotation : LoadedAnnotation
+  , regionsLablers : Dict Int (RegionsLabler.Model, AutoSave.Model Int)
   , error : Maybe String
   }
 
@@ -40,7 +45,8 @@ init =
     (frameNavigatorModel, frameNavigatorEffects) = FrameNavigator.init directionId
   in
     ( { frameNavigator = frameNavigatorModel
-      , loadedAnnotation = LoadingAnnotation 
+      , loadedAnnotation = LoadingAnnotation
+      , regionsLablers = Dict.empty 
       , error = Nothing
       }
     , Effects.batch
@@ -50,8 +56,8 @@ init =
     )
 
 
-imageView : Frame -> RegionsLabler.Model -> Html
-imageView frame regionsLablerModel =
+imageView : Signal.Address RegionsLabler.Action -> Frame -> RegionsLabler.Model -> Html
+imageView address frame regionsLablerModel =
   Svg.svg
     [ width (toString ourWidth)
     , height (toString ourHeight)
@@ -64,7 +70,7 @@ imageView frame regionsLablerModel =
       , height (toString ourHeight)
       ]
       []
-    , RegionsLabler.view regionsLablerModel
+    , RegionsLabler.view address regionsLablerModel
     ]
 
 
@@ -88,7 +94,7 @@ frameView address frame regionsLablerModel model =
     [ div
         [ class "col-md-8"
         ]
-        [ imageView frame regionsLablerModel
+        [ imageView (Signal.forwardTo address (RegionsLablerAction frame.id)) frame regionsLablerModel
         ]
     , div
         [ class "col-md-4"
@@ -118,10 +124,33 @@ view address model =
     case (FrameNavigator.maybeFrame model.frameNavigator, model.loadedAnnotation, maybeError) of
       (_, _, Just error) ->
         rootView (text ("Error: " ++ error))
-      (Just frame, LoadedAnnotation regionsLablerModel, _) ->
-        rootView (frameView address frame regionsLablerModel model)
+      (Just frame, LoadedAnnotation _, _) ->
+        case Dict.get frame.id model.regionsLablers of
+          Just (regionsLablerModel, _) ->
+            rootView (frameView address frame regionsLablerModel model)
+          Nothing ->
+            text "This really really shouln't happen!"
       _ ->
         rootView (text "Loading...")
+
+
+maybeInitializeRegionLabler : Model -> (Model, Effects.Effects Action)
+maybeInitializeRegionLabler model =
+  case (FrameNavigator.maybeFrame model.frameNavigator, model.loadedAnnotation) of
+    (Just frame, LoadedAnnotation annotation) ->
+      case Dict.get frame.id model.regionsLablers of
+        Just _ ->
+          (model, Effects.none)
+        Nothing ->
+          let
+            (autoSaveModel, autoSaveEffects) = AutoSave.init (\x -> Task.succeed (Result.Ok ()))
+            regionsLablerModel = RegionsLabler.init annotation
+          in
+            ( { model | regionsLablers = Dict.insert frame.id (regionsLablerModel, autoSaveModel) model.regionsLablers }
+            , Effects.map (AutoSaveAction frame.id) autoSaveEffects
+            )
+    _ ->
+      (model, Effects.none)
 
 
 update : Action -> Model -> (Model, Effects.Effects Action)
@@ -130,12 +159,23 @@ update action model =
     FrameNavigatorAction frameNavigatorAction ->
       let
         (frameNavigatorModel, frameNavigatorEffects) = FrameNavigator.update frameNavigatorAction model.frameNavigator
+        newModel1 = { model | frameNavigator = frameNavigatorModel }
+        (newModel2, newModel2Effects) = maybeInitializeRegionLabler newModel1 
       in
-        ({ model | frameNavigator = frameNavigatorModel }, Effects.map FrameNavigatorAction frameNavigatorEffects)
+        ( newModel2
+        , Effects.batch
+          [ Effects.map FrameNavigatorAction frameNavigatorEffects
+          , newModel2Effects
+          ]
+        )
     ReceiveAnnotation annotation ->
-      ({ model | loadedAnnotation = LoadedAnnotation (RegionsLabler.init annotation) }, Effects.none)
+      ({ model | loadedAnnotation = LoadedAnnotation annotation }, Effects.none)
     ReceiveError error ->
       ({ model | error = Just error }, Effects.none)
+    RegionsLablerAction frameId regionsLablerAction ->
+      ({ model | regionsLablers = Dict.update frameId (Maybe.map (\(regionsLablerModel, x) -> (RegionsLabler.update regionsLablerAction regionsLablerModel, x))) model.regionsLablers }, Effects.none)
+    _ ->
+      (model, Effects.none)
 
 
 getDirection : Effects.Effects Action

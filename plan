@@ -33,3 +33,8 @@ Labels should have their own table in the database.
 If a region has any labels, then deleting it should merely mark it as deleted so that the labels are still interpretable.
 If a region has any labels, then modifying it should not be allowed.
 At some point there might need to be a time column in the direction database for when the camera shifts.
+
+
+
+The region labler should carry labels over from the previous frame so that I can click through them fast and only make changes when things change.
+Clicking should toggle between occupied/unoccupied (instead of having an unlabled option) so that I need to do fewer clicks.
