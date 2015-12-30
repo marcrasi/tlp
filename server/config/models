@@ -39,4 +39,10 @@ Intersection json
     UniqueIntersectionName name
     deriving Show
 
+Label json
+    frame FrameId
+    region RegionId
+    UniqueLabel frame region
+    value Text
+
  -- By default this file is used in Model.hs (which is imported by Foundation.hs)

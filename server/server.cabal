@@ -25,6 +25,7 @@ library
                      Handler.Comment
                      Handler.Directions
                      Handler.Frames
+                     Handler.Labels
                      Handler.ResourceResponse
 
     if flag(dev) || flag(library-only)
