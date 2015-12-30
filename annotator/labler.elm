@@ -138,8 +138,8 @@ view address model =
         rootView (text "Loading...")
 
 
-maybeInitializeRegionLabler : Model -> (Model, Effects.Effects Action)
-maybeInitializeRegionLabler model =
+maybeInitializeRegionLabler : Model -> Maybe Labels -> (Model, Effects.Effects Action)
+maybeInitializeRegionLabler model defaultLabels =
   case (FrameNavigator.maybeFrame model.frameNavigator, model.loadedAnnotation) of
     (Just (frame, initialLabels), LoadedAnnotation annotation) ->
       case Dict.get frame.id model.regionsLablers of
@@ -147,11 +147,19 @@ maybeInitializeRegionLabler model =
           (model, Effects.none)
         Nothing ->
           let
+            initialLabels2 =
+              if List.length initialLabels.labels == 0
+                then Maybe.withDefault (Labels []) defaultLabels
+                else initialLabels
             (autoSaveModel, autoSaveEffects) = AutoSave.init (saveLabels frame.id)
-            regionsLablerModel = RegionsLabler.init annotation initialLabels
+            (autoSaveModel2, autoSaveEffects2) = AutoSave.update (AutoSave.DataChange initialLabels2) autoSaveModel
+            regionsLablerModel = RegionsLabler.init annotation initialLabels2
           in
-            ( { model | regionsLablers = Dict.insert frame.id (regionsLablerModel, autoSaveModel) model.regionsLablers }
-            , Effects.map (AutoSaveAction frame.id) autoSaveEffects
+            ( { model | regionsLablers = Dict.insert frame.id (regionsLablerModel, autoSaveModel2) model.regionsLablers }
+            , Effects.batch
+              [ Effects.map (AutoSaveAction frame.id) autoSaveEffects
+              , Effects.map (AutoSaveAction frame.id) autoSaveEffects2
+              ]
             )
     _ ->
       (model, Effects.none)
@@ -162,9 +170,18 @@ update action model =
   case action of
     FrameNavigatorAction frameNavigatorAction ->
       let
+        defaultLabels = case FrameNavigator.maybeFrame model.frameNavigator of
+          Just (frame, _) ->
+            case Dict.get frame.id model.regionsLablers of
+              Just (regionsLablerModel, _) ->
+                Just regionsLablerModel.labels
+              Nothing ->
+                Nothing
+          Nothing ->
+            Nothing
         (frameNavigatorModel, frameNavigatorEffects) = FrameNavigator.update frameNavigatorAction model.frameNavigator
         newModel1 = { model | frameNavigator = frameNavigatorModel }
-        (newModel2, newModel2Effects) = maybeInitializeRegionLabler newModel1 
+        (newModel2, newModel2Effects) = maybeInitializeRegionLabler newModel1 defaultLabels
       in
         ( newModel2
         , Effects.batch

@@ -1,3 +1,5 @@
+{-# LANGUAGE DatatypeContexts #-}
+
 module Handler.ArgumentParser (getArgument, getOptionalArgument, getPagination, PaginationArgument(start, limit)) where
 
 import Import

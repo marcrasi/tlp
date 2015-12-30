@@ -55,7 +55,7 @@ nextValue value =
   case value of
     Nothing -> Just "occupied"
     Just "occupied" -> Just "unoccupied"
-    Just "unoccupied" -> Nothing
+    Just "unoccupied" -> Just "occupied" 
     _ -> Nothing
 
 
