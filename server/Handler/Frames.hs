@@ -1,14 +1,36 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 
-module Handler.Frames (getFramesR) where
+module Handler.Frames (getFramesR, putFrameR) where
 
-import Import hiding (empty)
+import Import hiding (fromList, empty)
 
-import Data.Map (empty)
+import Data.Map (fromList, empty)
 import Data.Time.Clock
 
 import Handler.ArgumentParser
 import Handler.ResourceResponse
+
+data LabelUpdate = LabelUpdate
+  { regionId :: RegionId
+  , value :: Text
+  }
+
+instance FromJSON LabelUpdate where
+    parseJSON (Object o) = LabelUpdate
+      <$> o .: "regionId"
+      <*> o .: "value"
+
+    parseJSON _ = mzero
+
+data FrameUpdate = FrameUpdate
+  { labels :: [LabelUpdate]
+  }
+
+instance FromJSON FrameUpdate where
+    parseJSON (Object o) = FrameUpdate
+      <$> o .: "labels"
+
+    parseJSON _ = mzero
 
 getFramesR :: Handler Value
 getFramesR = do
@@ -17,6 +39,34 @@ getFramesR = do
       Nothing -> getAll
       Just "direction" -> getDirection
       Just otherQuery -> invalidArgs ["Unknown query '" ++ otherQuery ++ "'."]
+
+putFrameR :: FrameId -> Handler Value
+putFrameR frameId = do
+    FrameUpdate labelUpdates <- requireJsonBody
+
+    frame <- runDB $ get404 frameId
+    mapM_ (checkLabelCreate $ frameDirection frame) labelUpdates
+
+    runDB $ deleteWhere [LabelFrame ==. frameId]
+    mapM_ (insertLabelUpdate frameId) labelUpdates 
+    
+    sendResponseStatus status200 ("OK" :: Text)
+
+-- I wonder if there's some sql constraint that checks for this?? Or some
+-- way of structuring the schema so that it can't fail.
+checkLabelCreate :: DirectionId -> LabelUpdate -> Handler ()
+checkLabelCreate directionId (LabelUpdate regionId _) = do
+    region <- runDB $ get404 regionId
+    if regionDirection region /= directionId 
+      then
+        invalidArgs ["Region " ++ (fromString $ show regionId) ++ " not in direction " ++ (fromString $ show directionId) ++ "."]
+      else
+        return ()
+
+insertLabelUpdate :: FrameId -> LabelUpdate -> Handler ()
+insertLabelUpdate frameId (LabelUpdate regionId value) = do
+    _ <- runDB $ insert $ Label frameId regionId value
+    return ()
 
 getAll :: Handler Value
 getAll = do
@@ -39,7 +89,12 @@ getDirection = do
     frames :: [Entity Frame] <- runDB $ selectList ((FrameDirection ==. directionId) : (paginationFilters pagination)) (paginationOptions pagination)
     let returnFrames = take (length frames - 1) frames
     let nextFrame = lastMay frames
-    returnJson $ ResourceResponse { elements = returnFrames, linked = empty, pagination = map paginationResponse nextFrame }
+    labels <- runDB $ selectList [LabelFrame <-. map (\(Entity k _) -> k) returnFrames] []
+    returnJson $ ResourceResponse
+      { elements = returnFrames
+      , linked = fromList [("labels.v1", map toJSON labels)] 
+      , pagination = map paginationResponse nextFrame
+      }
 
 paginationFilters :: PaginationArgument UTCTime -> [Filter Frame]
 paginationFilters pagination =
