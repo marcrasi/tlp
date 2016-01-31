@@ -1,16 +1,18 @@
 module Model.Frame (..) where
 
 
+import Date exposing (Date)
 import Json.Decode exposing (..)
 
 
+import Model.Date exposing (dateString)
 import Model.Labels as Labels exposing (Labels)
 
 
 type alias Frame =
   { direction : Int
   , id : Int
-  , capturedAt : String
+  , capturedAt : Date
   , filename : String
   }
 
@@ -20,7 +22,7 @@ decoder =
   object4 Frame
     ("direction" := int)
     ("id" := int)
-    ("capturedAt" := string)
+    ("capturedAt" := dateString)
     ("filename" := string)
 
 
