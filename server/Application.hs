@@ -37,6 +37,7 @@ import Handler.Home
 import Handler.Comment
 import Handler.Directions
 import Handler.Frames
+import Handler.Hours
 import Handler.Labels
 
 -- This line actually creates our YesodDispatch instance. It is the second half

@@ -11,6 +11,8 @@
 /directions.v1 DirectionsR GET
 /directions.v1/#DirectionId DirectionR GET PUT
 
+/hours.v1 HoursR GET
+
 /labels.v1 LabelsR POST
 
 /frames.v1 FramesR GET

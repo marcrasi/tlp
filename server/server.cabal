@@ -25,6 +25,7 @@ library
                      Handler.Comment
                      Handler.Directions
                      Handler.Frames
+                     Handler.Hours
                      Handler.Labels
                      Handler.ResourceResponse
 

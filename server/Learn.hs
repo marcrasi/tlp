@@ -25,24 +25,90 @@ import qualified Data.List as L
 
 import Polygon
 
+indexWithDefault :: Int -> a -> [a] -> a
+indexWithDefault index def list =
+    case headMay $ drop index list of
+      Nothing -> def
+      Just value -> value
+
+data DecisionTree
+    = Decide Int
+    | Switch Int Double DecisionTree DecisionTree
+    deriving Show
+
+decide :: DecisionTree -> ProcessedExample -> Int
+decide (Decide decision) _ = decision
+decide (Switch index value low high) example =
+    if getFeatureValue index example < value
+      then decide low example
+      else decide high example
+
+empericalP :: (Eq a) => [a] -> a -> Double
+empericalP list value =
+    (sum $ map (\a -> if a == value then 1.0 else 0.0) list) / (fromIntegral $ length list)
+
+splitGoodness :: [ProcessedExample] -> Int -> Double -> Double
+splitGoodness examples featureIndex split =
+    let
+      featureValues = map (getFeatureValue featureIndex) examples
+      decisions = map (\fv -> if fv < split then 0 else 1) featureValues
+      labels = map processedExampleLabel examples
+      possibleDecisions = [0, 1]
+      possibleLabels = L.nub labels
+    in
+      sum $
+      map (\(d, l) ->
+        let
+          pdl = empericalP (zip decisions labels) (d, l)
+          pd = empericalP decisions d
+          pl = empericalP labels l
+        in
+          if pdl > 0
+            then pdl * log (pdl / (pd * pl))
+            else 0) $
+      [(d, l) | d <- possibleDecisions, l <- possibleLabels]
+
+featureGoodness :: [ProcessedExample] -> Int -> (Double, Double)
+featureGoodness examples featureIndex =
+    let
+      featureValues =
+        foldr (\e l -> if (headMay l) == (Just e) then l else e : l) [] $
+        sort $
+        map (getFeatureValue featureIndex) examples
+      splitPoints =
+        map (/2) $
+        zipWith (+) featureValues $ drop 1 $ L.cycle featureValues
+      goodness = map (\sp -> (sp, splitGoodness examples featureIndex sp)) splitPoints
+      bestMay = headMay $ sortWith (\(_, v) -> -v) goodness
+    in
+      case bestMay of
+        Nothing -> (0, 0)
+        Just (splitPoint, value) -> (splitPoint, value)
+
+train :: [ProcessedExample] -> DecisionTree
+train [] = Decide 0
+train (example : examples)
+    | all ((== firstExampleLabel) . processedExampleLabel) examples = Decide firstExampleLabel
+    | otherwise =
+      let
+        featureIndexes = [0 .. (length $ processedExampleFeatureValues example) - 1]
+        goodness = map (\i -> (i, (featureGoodness (example : examples)) i)) featureIndexes
+        bestMay = headMay $ sortWith (\(i, (sp, v)) -> -v) $ goodness
+      in
+        case bestMay of
+          Nothing -> Decide 0
+          Just (bestIndex, (sp, v)) ->
+            let
+              lows = filter (\e -> getFeatureValue bestIndex e < sp) (example : examples)
+              highs = filter (\e -> getFeatureValue bestIndex e >= sp) (example : examples)
+              lowTree = train lows
+              highTree = train highs
+            in
+              Switch bestIndex sp lowTree highTree
+    where firstExampleLabel = processedExampleLabel example
+
 learn :: IO ()
 learn = handler learnHandler
-
-saveChop :: IO ()
-saveChop = handler saveChopHandler
-
-saveChopHandler :: Handler ()
-saveChopHandler = do
-    examples <- loadExamples 5
-    liftIO $ mapM_ saveNumberedExample $ zip [1..] examples
-
-saveNumberedExample :: (Int, Example) -> IO ()
-saveNumberedExample (number, example) =
-    let
-      juiced = ImageRGB8 $ toJuicyRGB $ exampleImage example
-      filename = (show number) ++ ".png"
-    in
-      savePngImage filename juiced
 
 data Example = Example
     { exampleImage :: RGB
@@ -53,6 +119,10 @@ data ProcessedExample = ProcessedExample
     { processedExampleFeatureValues :: [Double]
     , processedExampleLabel :: Int
     } deriving (Show)
+
+getFeatureValue :: Int -> ProcessedExample -> Double
+getFeatureValue index example =
+    indexWithDefault index 0.0 (processedExampleFeatureValues example)
 
 data Feature = Feature RGB
 
@@ -127,15 +197,23 @@ learnHandler = do
     let rejuiced = ImageRGB8 $ toJuicyRGB chopped
     liftIO $ savePngImage "example.png" rejuiced-}
     let trainSize = 200
-    let testSize = 100
+    let testSize = 500
     let trainTestBufferSize = 100
     examples <- loadExamples (trainSize + trainTestBufferSize + testSize)
     let trainExamples = take trainSize examples
     let testExamples = drop (trainSize + trainTestBufferSize) examples
     let features = makeFeatures 6 trainExamples
-    liftIO $ print $ length features
-    liftIO $ mapM_ (print . (processExample features)) trainExamples
-    return ()
+    let processedTrainExamples = map (processExample features) trainExamples
+    let processedTestExamples = map (processExample features) testExamples
+    let tree = train processedTrainExamples
+    print tree
+    print "Training examples"
+    mapM_ (\e ->
+      print (processedExampleLabel e, decide tree e)) processedTrainExamples
+    print "Testing examples"
+    mapM_ (\e ->
+      print (processedExampleLabel e, decide tree e)) processedTestExamples
+
 
 chopImage :: Polygon -> RGB -> RGB
 chopImage polygon image =
