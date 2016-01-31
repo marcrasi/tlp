@@ -38,3 +38,12 @@ At some point there might need to be a time column in the direction database for
 
 The region labler should carry labels over from the previous frame so that I can click through them fast and only make changes when things change.
 Clicking should toggle between occupied/unoccupied (instead of having an unlabled option) so that I need to do fewer clicks.
+
+
+---------------
+
+There shall be a page that I can go to where I can select a feed that I want to start importing and it will start importing images from that feed in to the database.
+It'll also show the images from the feed as it is importing them.
+In the future I can also make this page show inferred labels and stuff on top of the images.
+
+There shall also be an improved frame navigation widget so that I can quickly select newer frames in the region editor and labeler pages and label them.
