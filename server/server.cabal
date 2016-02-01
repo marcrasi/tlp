@@ -29,6 +29,7 @@ library
                      Handler.Hours
                      Handler.Labels
                      Handler.ResourceResponse
+                     VideoDownload.Download
                      VideoDownload.ImportFrame
                      VideoDownload.Urls
 
@@ -99,6 +100,7 @@ library
                  , filepath
                  , cryptohash
                  , conduit-extra
+                 , http-types
 
 executable         server
     if flag(library-only)

@@ -66,16 +66,6 @@ processDirection src intersectionId intersectionName name = do
         liftIO $ putStrLn ("Not importing directory " ++ (fromString name) ++ " from intersection " ++
           (fromString intersectionName) ++ " because it's not in the direction table.")
 
-sinkByteString :: (MonadResource m) => Sink ByteString m ByteString
-sinkByteString = do
-    mx <- await
-    case mx of
-      Just x -> do
-        rest <- sinkByteString
-        return $ append x rest
-      Nothing ->
-        return empty
-
 processFile :: FilePath -> DirectionId -> FilePath -> Handler ()
 processFile src directionId fileName = do
     let filePath = combine src fileName

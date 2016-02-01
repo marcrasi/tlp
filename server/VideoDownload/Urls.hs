@@ -7,7 +7,7 @@ import Data.Time.Clock (diffUTCTime, getCurrentTime, secondsToDiffTime)
 
 getFreshUrl :: Text -> Handler (Maybe Text)
 getFreshUrl publicVideoId = do
-    let freshnessSeconds = 600
+    let freshnessSeconds = 60000000
     currentTime <- liftIO $ getCurrentTime
     maybeExisting <- runDB $ getBy (UniquePublicVideoId publicVideoId)
     maybeFresh <- case maybeExisting of
