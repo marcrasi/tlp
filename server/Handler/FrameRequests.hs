@@ -3,6 +3,7 @@ module Handler.FrameRequests where
 import Import hiding (fromList)
 
 import qualified Data.Text as DT
+import Data.Map (fromList)
 import Data.Time.Clock (getCurrentTime)
 import Data.Time.Format (defaultTimeLocale, formatTime)
 import System.Directory (createDirectoryIfMissing, doesFileExist)
@@ -12,18 +13,30 @@ import Handler.ResourceResponse
 import VideoDownload.Download (getFrame, DownloadError(CannotFindVideoUrl, CannotDownloadFrame))
 import VideoDownload.ImportFrame (importFrame)
 
-data FrameRequest = FrameRequest
-  { directionId :: DirectionId }
+data FrameRequestCreate = FrameRequestCreate DirectionId
 
-instance FromJSON FrameRequest where
-    parseJSON (Object o) = FrameRequest
+instance FromJSON FrameRequestCreate where
+    parseJSON (Object o) = FrameRequestCreate
       <$> o .: "directionId"
 
     parseJSON _ = mzero
 
+data FrameRequest = FrameRequest
+  { directionId :: DirectionId
+  , frameId :: FrameId
+  , isNew :: Bool
+  }
+
+instance ToJSON FrameRequest where
+    toJSON (FrameRequest directionId frameId isNew) = object
+      [ "directionId" .= directionId
+      , "frameId" .= frameId
+      , "isNew" .= isNew
+      ]
+
 postFrameRequestsR :: Handler Value
 postFrameRequestsR = do
-    FrameRequest directionId <- requireJsonBody
+    FrameRequestCreate directionId <- requireJsonBody
     direction <- runDB $ get404 directionId
     intersection <- runDB $ get404 (directionIntersection direction)
     -- Note that currentTime might be way out of date by the time we
@@ -32,8 +45,8 @@ postFrameRequestsR = do
     let framePath = getFramePath currentTime intersection direction
     liftIO $ createDirectoryIfMissing True $ takeDirectory framePath
     fileExists <- liftIO $ doesFileExist framePath
-    if fileExists
-      then return ()
+    importResult <- if fileExists
+      then importFrame framePath directionId currentTime
       else do
         frameResult <- getFrame framePath (directionPublicVideoId direction)
         case frameResult of
@@ -44,7 +57,17 @@ postFrameRequestsR = do
           Nothing ->
             importFrame framePath directionId currentTime
 
-    returnJson ("Hello World" :: Text)
+    (frameId, isNew) <- case importResult of
+      Left error -> sendResponseStatus status500 error
+      Right result -> return result
+
+    frames <- runDB $ get frameId
+
+    returnJson $ ResourceResponse
+      { elements = [ FrameRequest directionId frameId isNew ]
+      , linked = fromList [("frames.v1", map (\x -> toJSON $ Entity frameId x) (maybeToList frames))]
+      , pagination = Nothing
+      }
 
 getFramePath :: UTCTime -> Intersection -> Direction -> FilePath
 getFramePath currentTime intersection direction =
