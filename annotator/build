@@ -1,5 +1,6 @@
 #!/bin/bash
 
 # Lalala I have no idea what I am doing.
-elm-make editor.elm --output ../server/static/compiled/editor.js
-elm-make labler.elm --output ../server/static/compiled/labler.js
+# elm-make editor.elm --output ../server/static/compiled/editor.js
+# elm-make labler.elm --output ../server/static/compiled/labler.js
+elm-make capture.elm --output ../server/static/compiled/capture.js
