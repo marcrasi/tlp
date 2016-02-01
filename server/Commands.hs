@@ -3,22 +3,14 @@ module Commands (importImages) where
 import Application
 import Import hiding (empty, head)
 
-import Codec.Picture
-import Codec.Picture.Types
-import Crypto.Hash.SHA1 as SHA1
 import Data.ByteString (append, empty, head)
 import Data.ByteString.Builder
 import Data.Text.Encoding
 import Data.Time.Format
-import Data.Vector.Storable.ByteString
-import Vision.Image.JuicyPixels
-import Vision.Image.RGB.Type
-import Vision.Image.Type
 import System.Directory
 import System.FilePath
 
-import Data.Conduit
-import qualified Data.Conduit.Binary as CB
+import VideoDownload.ImportFrame (importFrame)
 
 getChildren :: FilePath -> IO [FilePath]
 getChildren src =
@@ -69,7 +61,7 @@ processDirection src intersectionId intersectionName name = do
     case maybeEntity of
       Just (Entity id _) -> do
         files <- liftIO $ getFiles directory
-        mapM_ (processFile directory id) files 
+        mapM_ (processFile directory id) files
       Nothing ->
         liftIO $ putStrLn ("Not importing directory " ++ (fromString name) ++ " from intersection " ++
           (fromString intersectionName) ++ " because it's not in the direction table.")
@@ -88,30 +80,8 @@ processFile :: FilePath -> DirectionId -> FilePath -> Handler ()
 processFile src directionId fileName = do
     let filePath = combine src fileName
     let maybeTime = parseTimeM True defaultTimeLocale "%s" ((reverse . drop 3 . reverse . dropExtensions) fileName) :: Maybe UTCTime
-    imageByteString <- liftIO $ runResourceT $ CB.sourceFile filePath $$ sinkByteString 
-    let imageEither = decodeImageWithMetadata imageByteString
-    case (imageEither, maybeTime) of
-      (_, Nothing) ->
+    case maybeTime of
+      Just time ->
+        importFrame filePath directionId time
+      Nothing ->
         liftIO $ putStrLn ("Cannot read time from file name " ++ (fromString fileName))
-      (Left error, _) ->
-        liftIO $ print error
-      (Right (ImageYCbCr8 image, _), Just time) ->
-        processImage filePath directionId time (toFridayRGB $ convertImage image)
-      _ ->
-        liftIO $ putStrLn "Unsupported image type."
-
-processImage :: FilePath -> DirectionId -> UTCTime -> RGB -> Handler ()
-processImage src directionId time image = do
-  let hash = hashRGB image
-  let frame = Frame { frameHash = hash, frameFilename = (fromString src), frameCapturedAt = time, frameDirection = directionId }
-  withSameHash <- runDB $ getBy (UniqueHash hash)
-  case withSameHash of
-    Just _ ->
-      liftIO $ putStrLn ("Image " ++ (fromString src) ++ " already imported. Skipping.")
-    Nothing -> do
-      runDB $ insert frame
-      return ()
-
-hashRGB :: RGB -> Text 
-hashRGB rgb =
-    decodeASCII $ toStrict $ toLazyByteString $ byteStringHex $ SHA1.hash $ vectorToByteString $ manifestVector rgb 

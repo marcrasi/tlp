@@ -24,10 +24,13 @@ library
                      Handler.Home
                      Handler.Comment
                      Handler.Directions
+                     Handler.FrameRequests
                      Handler.Frames
                      Handler.Hours
                      Handler.Labels
                      Handler.ResourceResponse
+                     VideoDownload.ImportFrame
+                     VideoDownload.Urls
 
     if flag(dev) || flag(library-only)
         cpp-options:   -DDEVELOPMENT
@@ -91,7 +94,11 @@ library
                  , wai
                  , friday
                  , friday-juicypixels
+                 , JuicyPixels
                  , spool
+                 , filepath
+                 , cryptohash
+                 , conduit-extra
 
 executable         server
     if flag(library-only)

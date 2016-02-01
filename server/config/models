@@ -31,6 +31,7 @@ Region json
 Direction json
     name Text
     intersection IntersectionId
+    publicVideoId Text
     UniqueDirectionName intersection name
     deriving Show
 
@@ -44,5 +45,11 @@ Label json
     region RegionId
     UniqueLabel frame region
     value Text
+
+VideoUrl json
+    publicVideoId Text
+    url Text
+    generatedAt UTCTime
+    UniquePublicVideoId publicVideoId
 
  -- By default this file is used in Model.hs (which is imported by Foundation.hs)

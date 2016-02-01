@@ -17,3 +17,5 @@
 
 /frames.v1 FramesR GET
 /frames.v1/#FrameId FrameR PUT
+
+/frameRequests.v1 FrameRequestsR POST

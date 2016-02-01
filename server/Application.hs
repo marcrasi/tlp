@@ -36,6 +36,7 @@ import Handler.Common
 import Handler.Home
 import Handler.Comment
 import Handler.Directions
+import Handler.FrameRequests
 import Handler.Frames
 import Handler.Hours
 import Handler.Labels
