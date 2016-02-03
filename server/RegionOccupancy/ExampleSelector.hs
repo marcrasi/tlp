@@ -65,13 +65,13 @@ selectExamples options regionId = do
     unoccupiedExampleCount = (exampleCount options) - occupiedExampleCount
 
 loadExample :: OccupancyLabel -> Entity Frame -> Handler LabeledExample
-loadExample label (Entity _ frame) = do
+loadExample label (Entity frameId frame) = do
     imageEither <- liftIO $ withBinaryFile (unpack $ frameFilename frame) ReadMode (\x -> fmap decodeImage (hGetContents x))
     image <- case imageEither of
         Left error -> invalidArgs ["Could not load image."]
         Right (ImageYCbCr8 image) -> return $ toFridayRGB $ convertImage image
         Right _ -> invalidArgs ["Unknown image type."]
-    return $ LabeledExample label $ Example image $ frameCapturedAt frame
+    return $ LabeledExample label $ Example (Entity frameId frame) image $ frameCapturedAt frame
 
 captureTimeOfDay :: Entity Frame -> Float
 captureTimeOfDay (Entity _ frame) =

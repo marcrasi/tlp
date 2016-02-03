@@ -8,7 +8,8 @@ import Vision.Image.RGB.Type (RGB)
 import RegionOccupancy.OccupancyLabel
 
 data Example = Example
-  { image :: RGB
+  { frame :: Entity Frame
+  , image :: RGB
   , capturedAt :: UTCTime
   }
 

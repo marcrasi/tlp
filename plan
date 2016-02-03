@@ -55,3 +55,6 @@ Make the decision tree serializable.
 Store the decision tree in the database.
 
 Make a thing that runs the decision tree as the frames come in and displays the results.
+
+There should be a thing that will load the image for a frame.
+It can power the example loader and the decision tree loader.
