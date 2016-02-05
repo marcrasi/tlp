@@ -6,6 +6,8 @@ import Data.Aeson
 import Data.Aeson.Types
 import Vision.Image.RGB.Type (RGB)
 
+import ExceptHandler
+import Image.Loader
 import Polygon
 import RegionOccupancy.OccupancyLabel
 
@@ -74,7 +76,16 @@ data LoadedModel = LoadedModel
 unloadModel :: LoadedModel -> UnloadedModel
 unloadModel (LoadedModel a b c d e) = UnloadedModel a d e
 
-loadModel :: UnloadedModel -> Handler (Maybe LoadedModel)
+loadModel :: UnloadedModel -> ExceptHandler LoadedModel
 loadModel (UnloadedModel regionId featureFrames tree) = do
-    regionMay <- get regionId
-    let
+    region <- (lift $ runDB $ get regionId) >>= getOrError "Could not find region."
+    polygon <- getOrError "Could not decode polygon." $ decodeStrict $ regionValue region
+    unchoppedImages <- mapM (\(Entity _ frame) -> loadImage $ unpack $ frameFilename frame) featureFrames
+    let choppedImages = map (chopImage polygon) unchoppedImages
+    LoadedModel
+        { regionId = regionId
+        , featurePolygon = polygon
+        , featureImages = choppedImages
+        , featureFrames = featureFrames
+        , loadedTree = tree
+        }

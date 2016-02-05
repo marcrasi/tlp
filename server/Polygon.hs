@@ -1,9 +1,16 @@
-module Polygon where
+module Polygon
+    ( Polygon
+    , chopImage
+    ) where
 
 import Import
 
 import Data.List (cycle)
 import qualified Data.Vector as Vector
+import qualified Vision.Image as I
+import qualified Vision.Primitive as P
+import qualified Vision.Primitive.Shape as S
+import Vision.Image.RGB.Type (RGBPixel)
 
 -- A 2d point with coordinates.
 data Point = Point Double Double deriving (Show)
@@ -36,6 +43,10 @@ rh (Rect (Point _ y1) (Point _ y2)) = y2 - y1
 -- A polygon with verticies.
 data Polygon = Polygon [Point] deriving (Show)
 
+instance ToJSON Polygon where
+    toJSON (Polygon points) =
+        object [ "points" .= points ]
+
 instance FromJSON Polygon where
     parseJSON (Object o) = Polygon
       <$> o .: "points"
@@ -64,7 +75,6 @@ containsPoint polygon point =
     in
       intersectionCount `mod` 2 == 1
 
-
 zoom :: Double -> Polygon -> Polygon
 zoom factor (Polygon vertices) =
     Polygon $ map (\(Point x y) -> Point (factor * x) (factor * y)) vertices
@@ -72,3 +82,28 @@ zoom factor (Polygon vertices) =
 setOrigin :: Point -> Polygon -> Polygon
 setOrigin (Point ox oy) (Polygon vertices) =
     Polygon $ map (\(Point x y) -> Point (x - ox) (y - oy)) vertices
+
+-- Image processing.
+chopImage :: Polygon -> RGB -> RGB
+chopImage unscaledPolygon image =
+    let
+      rect = boundingRect polygon
+      Rect origin _ = rect
+      Point ox oy = origin
+      translatedPolygon = setOrigin origin polygon
+      fridayRect = P.Rect (floor ox) (floor oy) (ceiling $ rw rect) (ceiling $ rh rect)
+      croppedImage = I.crop fridayRect image :: RGB
+    in
+      I.fromFunction (I.shape croppedImage) $ \pt ->
+        let
+          S.Z S.:. y S.:. x = pt
+          point = Point (fromIntegral x + 0.5) (fromIntegral y + 0.5)
+        in
+          if containsPoint translatedPolygon point then
+            I.index croppedImage pt
+          else
+            RGBPixel 0 0 0
+  where
+    -- TODO: Figure out how to get rid of all the duplicated scaling
+    -- constants around the code.
+    polygon = zoom 0.5 unscaledPolygon

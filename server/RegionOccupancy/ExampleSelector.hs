@@ -1,18 +1,14 @@
 module RegionOccupancy.ExampleSelector where
 
-import Application
-
 import Import hiding (fromList, fromString, lookup)
 
-import Codec.Picture (decodeImage)
-import Codec.Picture.Types (convertImage, DynamicImage(ImageYCbCr8))
 import Data.Time (UTCTime, utctDayTime, getCurrentTime)
 import Data.Time.Calendar (Day(ModifiedJulianDay))
 import Data.Map.Strict (Map, fromList, lookup)
 import Database.Persist.Sql (toSqlKey)
-import System.IO (withBinaryFile, IOMode(ReadMode))
-import Vision.Image.JuicyPixels (toFridayRGB)
 
+import ExceptHandler
+import Image.Loader
 import RegionOccupancy.Example
 import RegionOccupancy.OccupancyLabel
 
@@ -31,24 +27,24 @@ defaultSelectionOptions = SelectionOptions
   , occupiedFraction = 0.5
   }
 
-testSelectExamples :: Int64 -> Int -> IO [LabeledExample]
+testSelectExamples :: Int64 -> Int -> IO (Either Text [LabeledExample])
 testSelectExamples regionId count = do
     currentTime <- getCurrentTime
     let so = defaultSelectionOptions { endTime = currentTime, exampleCount = count }
-    handler $ selectExamples so (toSqlKey regionId)
+    exceptHandler $ selectExamples so (toSqlKey regionId)
 
 -- Selects `exampleCount` examples from the database.
 -- Gets examples captured between `startTime` and `endTime`.
 -- `occupiedFraction` of them are occupied examples.
 -- Attempts to dsitribute sample time-of-day as uniformly as possible.
-selectExamples :: SelectionOptions -> RegionId -> Handler [LabeledExample]
+selectExamples :: SelectionOptions -> RegionId -> ExceptHandler [LabeledExample]
 selectExamples options regionId = do
-    region <- runDB $ get404 regionId
+    region <- (lift $ runDB $ get regionId) >>= getOrError "Region not found."
     let directionId = regionDirection region
-    direction <- runDB $ get404 directionId
+    direction <- (lift $ runDB $ get directionId) >>= getOrError "Direction not found."
 
-    frames <- runDB $ selectList [FrameCapturedAt >=. startTime options, FrameCapturedAt <=. endTime options] []
-    labels <- runDB $ selectList [LabelRegion ==. regionId] []
+    frames <- lift $ runDB $ selectList [FrameCapturedAt >=. startTime options, FrameCapturedAt <=. endTime options] []
+    labels <- lift $ runDB $ selectList [LabelRegion ==. regionId] []
     let labeledFrames = getLabeledFrames frames labels
     let occupiedFrames = map snd $ filter (\t -> (fst t) == Occupied) labeledFrames
     let unoccupiedFrames = map snd $ filter (\t -> (fst t) == Unoccupied) labeledFrames
@@ -64,13 +60,9 @@ selectExamples options regionId = do
     occupiedExampleCount = round ((occupiedFraction options) * fromIntegral (exampleCount options))
     unoccupiedExampleCount = (exampleCount options) - occupiedExampleCount
 
-loadExample :: OccupancyLabel -> Entity Frame -> Handler LabeledExample
+loadExample :: OccupancyLabel -> Entity Frame -> ExceptHandler LabeledExample
 loadExample label (Entity frameId frame) = do
-    imageEither <- liftIO $ withBinaryFile (unpack $ frameFilename frame) ReadMode (\x -> fmap decodeImage (hGetContents x))
-    image <- case imageEither of
-        Left error -> invalidArgs ["Could not load image."]
-        Right (ImageYCbCr8 image) -> return $ toFridayRGB $ convertImage image
-        Right _ -> invalidArgs ["Unknown image type."]
+    image <- loadImage $ unpack $ frameFilename frame
     return $ LabeledExample label $ Example (Entity frameId frame) image $ frameCapturedAt frame
 
 captureTimeOfDay :: Entity Frame -> Float

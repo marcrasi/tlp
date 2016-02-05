@@ -11,14 +11,10 @@ import qualified Data.Text.Lazy.Encoding as LTE
 import qualified Data.Text.Lazy as LT
 import qualified Data.Vector.Storable as V
 import System.IO (withBinaryFile, IOMode(ReadMode))
-import qualified Vision.Image as I
-import qualified Vision.Primitive as P
-import qualified Vision.Primitive.Shape as S
 import Vision.Image.Conversion
 import Vision.Image.Filter
 import Vision.Image.Grey.Type
 import Vision.Image.JuicyPixels
-import Vision.Image.RGB.Type
 import Vision.Image.Type
 
 import qualified Data.List as L
@@ -214,26 +210,6 @@ learnHandler = do
     mapM_ (\e ->
       print (processedExampleLabel e, decide tree e)) processedTestExamples
 
-
-chopImage :: Polygon -> RGB -> RGB
-chopImage polygon image =
-    let
-      rect = boundingRect polygon
-      Rect origin _ = rect
-      Point ox oy = origin
-      translatedPolygon = setOrigin origin polygon
-      fridayRect = P.Rect (floor ox) (floor oy) (ceiling $ rw rect) (ceiling $ rh rect)
-      croppedImage = I.crop fridayRect image :: RGB
-    in
-      I.fromFunction (I.shape croppedImage) $ \pt ->
-        let
-          S.Z S.:. y S.:. x = pt
-          point = Point (fromIntegral x + 0.5) (fromIntegral y + 0.5)
-        in
-          if containsPoint translatedPolygon point then
-            I.index croppedImage pt
-          else
-            RGBPixel 0 0 0
 
 colorGaussianBlur :: Int -> RGB -> RGB
 colorGaussianBlur radius image =
