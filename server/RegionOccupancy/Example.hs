@@ -7,13 +7,30 @@ import Vision.Image.RGB.Type (RGB)
 
 import RegionOccupancy.OccupancyLabel
 
-data Example = Example
-  { frame :: Entity Frame
-  , image :: RGB
-  , capturedAt :: UTCTime
+class Example a where
+    getFrame :: a -> Entity Frame
+    getImage :: a -> RGB
+
+class Labeled a where
+    getLabel :: a -> OccupancyLabel
+
+data UnlabeledExample = UnlabeledExample
+  { unlabeledExampleFrame :: Entity Frame
+  , unlabeledExampleImage :: RGB
   }
 
+instance Example UnlabeledExample where
+    getFrame = unlabeledExampleFrame
+    getImage = unlabeledExampleImage
+
 data LabeledExample = LabeledExample
-  { label :: OccupancyLabel
-  , example :: Example
+  { labeledExampleLabel :: OccupancyLabel
+  , labeledExampleUnlabeledExample :: UnlabeledExample
   }
+
+instance Example LabeledExample where
+    getFrame = getFrame . labeledExampleUnlabeledExample
+    getImage = getImage . labeledExampleUnlabeledExample
+
+instance Labeled LabeledExample where
+    getLabel = labeledExampleLabel

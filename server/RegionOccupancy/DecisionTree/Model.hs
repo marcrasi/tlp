@@ -1,4 +1,4 @@
-module RegionOccupancy.DecisionTree where
+module RegionOccupancy.DecisionTree.Model where
 
 import Import
 
@@ -9,11 +9,12 @@ import Vision.Image.RGB.Type (RGB)
 import ExceptHandler
 import Image.Loader
 import Polygon
+import RegionOccupancy.Feature
 import RegionOccupancy.OccupancyLabel
 
 data DecisionTree
     = Decide OccupancyLabel
-    | SwitchDotFrame Int Float DecisionTree DecisionTree
+    | SwitchDotFrame Int Double DecisionTree DecisionTree
     deriving (Show)
 
 instance ToJSON DecisionTree where
@@ -48,7 +49,7 @@ data UnloadedModel = UnloadedModel
     { unloadedRegionId :: RegionId
     , unloadedFeatureFrames :: [Entity Frame]
     , unloadedTree :: DecisionTree
-    }
+    } deriving (Show)
 
 instance ToJSON UnloadedModel where
     toJSON (UnloadedModel regionId featureFrames tree) =
@@ -61,31 +62,32 @@ instance ToJSON UnloadedModel where
 instance FromJSON UnloadedModel where
     parseJSON (Object o) =
         UnloadedModel <$>
-            o .: "regionId"
-            o .: "featureFrames"
+            o .: "regionId" <*>
+            o .: "featureFrames" <*>
             o .: "decisionTree"
 
 data LoadedModel = LoadedModel
     { regionId :: RegionId
-    , featurePolygon :: Polygon
-    , featureImages :: [RGB]
-    , featureFrames :: [Entity Frame]
+    , features :: [Feature]
     , loadedTree :: DecisionTree
     }
 
 unloadModel :: LoadedModel -> UnloadedModel
-unloadModel (LoadedModel a b c d e) = UnloadedModel a d e
+unloadModel (LoadedModel a b c) = UnloadedModel a (map featureFrame b) c
 
 loadModel :: UnloadedModel -> ExceptHandler LoadedModel
 loadModel (UnloadedModel regionId featureFrames tree) = do
     region <- (lift $ runDB $ get regionId) >>= getOrError "Could not find region."
-    polygon <- getOrError "Could not decode polygon." $ decodeStrict $ regionValue region
-    unchoppedImages <- mapM (\(Entity _ frame) -> loadImage $ unpack $ frameFilename frame) featureFrames
-    let choppedImages = map (chopImage polygon) unchoppedImages
-    LoadedModel
+    polygon <- getOrError "Could not decode polygon." $ decodeStrict $ encodeUtf8 $ regionValue region
+    features <- mapM (loadFeature polygon) featureFrames
+    return $ LoadedModel
         { regionId = regionId
-        , featurePolygon = polygon
-        , featureImages = choppedImages
-        , featureFrames = featureFrames
+        , features = features
         , loadedTree = tree
         }
+
+loadFeature :: Polygon -> Entity Frame -> ExceptHandler Feature
+loadFeature polygon (Entity frameId frame) = do
+    unchoppedImage <- loadImage $ unpack $ frameFilename frame
+    let choppedImage = chopImage polygon unchoppedImage
+    return $ Feature (Entity frameId frame) choppedImage polygon

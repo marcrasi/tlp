@@ -2,10 +2,12 @@ module RegionOccupancy.OccupancyLabel where
 
 import Import
 
+import qualified Data.Map as M
+
 data OccupancyLabel
     = Unoccupied
     | Occupied
-    deriving (Show, Eq)
+    deriving (Show, Eq, Ord)
 
 instance ToJSON OccupancyLabel where
     toJSON occupancyLabel =
@@ -26,3 +28,9 @@ fromText _ = Nothing
 toText :: OccupancyLabel -> Text
 toText Occupied = "occupied"
 toText Unoccupied = "unoccupied"
+
+labelMap :: (Num a) => M.Map OccupancyLabel a
+labelMap = M.fromList
+    [ (Unoccupied, 0)
+    , (Occupied, 0)
+    ]

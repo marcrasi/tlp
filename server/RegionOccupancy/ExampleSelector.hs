@@ -2,10 +2,9 @@ module RegionOccupancy.ExampleSelector where
 
 import Import hiding (fromList, fromString, lookup)
 
-import Data.Time (UTCTime, utctDayTime, getCurrentTime)
+import Data.Time (UTCTime, utctDayTime)
 import Data.Time.Calendar (Day(ModifiedJulianDay))
 import Data.Map.Strict (Map, fromList, lookup)
-import Database.Persist.Sql (toSqlKey)
 
 import ExceptHandler
 import Image.Loader
@@ -26,12 +25,6 @@ defaultSelectionOptions = SelectionOptions
   , exampleCount = 100
   , occupiedFraction = 0.5
   }
-
-testSelectExamples :: Int64 -> Int -> IO (Either Text [LabeledExample])
-testSelectExamples regionId count = do
-    currentTime <- getCurrentTime
-    let so = defaultSelectionOptions { endTime = currentTime, exampleCount = count }
-    exceptHandler $ selectExamples so (toSqlKey regionId)
 
 -- Selects `exampleCount` examples from the database.
 -- Gets examples captured between `startTime` and `endTime`.
@@ -63,7 +56,7 @@ selectExamples options regionId = do
 loadExample :: OccupancyLabel -> Entity Frame -> ExceptHandler LabeledExample
 loadExample label (Entity frameId frame) = do
     image <- loadImage $ unpack $ frameFilename frame
-    return $ LabeledExample label $ Example (Entity frameId frame) image $ frameCapturedAt frame
+    return $ LabeledExample label $ UnlabeledExample (Entity frameId frame) image
 
 captureTimeOfDay :: Entity Frame -> Float
 captureTimeOfDay (Entity _ frame) =

@@ -6,6 +6,7 @@ module Polygon
 import Import
 
 import Data.List (cycle)
+import qualified Data.Scientific as Sci
 import qualified Data.Vector as Vector
 import qualified Vision.Image as I
 import qualified Vision.Primitive as P
@@ -21,6 +22,10 @@ instance FromJSON Point where
         <$> parseJSON (a Vector.! 0)
         <*> parseJSON (a Vector.! 1)
     parseJSON _ = mzero
+
+instance ToJSON Point where
+    toJSON (Point x y) =
+        Array $ Vector.fromList [Number $ Sci.fromFloatDigits x, Number $ Sci.fromFloatDigits y]
 
 px :: Point -> Double
 px (Point x _) = x
@@ -84,7 +89,7 @@ setOrigin (Point ox oy) (Polygon vertices) =
     Polygon $ map (\(Point x y) -> Point (x - ox) (y - oy)) vertices
 
 -- Image processing.
-chopImage :: Polygon -> RGB -> RGB
+chopImage :: Polygon -> I.RGB -> I.RGB
 chopImage unscaledPolygon image =
     let
       rect = boundingRect polygon
@@ -92,7 +97,7 @@ chopImage unscaledPolygon image =
       Point ox oy = origin
       translatedPolygon = setOrigin origin polygon
       fridayRect = P.Rect (floor ox) (floor oy) (ceiling $ rw rect) (ceiling $ rh rect)
-      croppedImage = I.crop fridayRect image :: RGB
+      croppedImage = I.crop fridayRect image :: I.RGB
     in
       I.fromFunction (I.shape croppedImage) $ \pt ->
         let
@@ -102,7 +107,7 @@ chopImage unscaledPolygon image =
           if containsPoint translatedPolygon point then
             I.index croppedImage pt
           else
-            RGBPixel 0 0 0
+            I.RGBPixel 0 0 0
   where
     -- TODO: Figure out how to get rid of all the duplicated scaling
     -- constants around the code.
