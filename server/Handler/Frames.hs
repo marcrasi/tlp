@@ -48,8 +48,8 @@ putFrameR frameId = do
     mapM_ (checkLabelCreate $ frameDirection frame) labelUpdates
 
     runDB $ deleteWhere [LabelFrame ==. frameId]
-    mapM_ (insertLabelUpdate frameId) labelUpdates 
-    
+    mapM_ (insertLabelUpdate frameId) labelUpdates
+
     sendResponseStatus status200 ("OK" :: Text)
 
 -- I wonder if there's some sql constraint that checks for this?? Or some
@@ -57,7 +57,7 @@ putFrameR frameId = do
 checkLabelCreate :: DirectionId -> LabelUpdate -> Handler ()
 checkLabelCreate directionId (LabelUpdate regionId _) = do
     region <- runDB $ get404 regionId
-    if regionDirection region /= directionId 
+    if regionDirection region /= directionId
       then
         invalidArgs ["Region " ++ (fromString $ show regionId) ++ " not in direction " ++ (fromString $ show directionId) ++ "."]
       else
@@ -92,7 +92,7 @@ getDirection = do
     labels <- runDB $ selectList [LabelFrame <-. map (\(Entity k _) -> k) returnFrames] []
     returnJson $ ResourceResponse
       { elements = returnFrames
-      , linked = fromList [("labels.v1", map toJSON labels)] 
+      , linked = fromList [("labels.v1", map toJSON labels)]
       , pagination = map paginationResponse nextFrame
       }
 

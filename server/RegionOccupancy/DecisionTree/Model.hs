@@ -67,8 +67,8 @@ instance FromJSON UnloadedModel where
             o .: "decisionTree"
 
 data LoadedModel = LoadedModel
-    { regionId :: RegionId
-    , features :: [Feature]
+    { loadedRegionId :: RegionId
+    , loadedFeatures :: [Feature]
     , loadedTree :: DecisionTree
     }
 
@@ -81,10 +81,16 @@ loadModel (UnloadedModel regionId featureFrames tree) = do
     polygon <- getOrError "Could not decode polygon." $ decodeStrict $ encodeUtf8 $ regionValue region
     features <- mapM (loadFeature polygon) featureFrames
     return $ LoadedModel
-        { regionId = regionId
-        , features = features
+        { loadedRegionId = regionId
+        , loadedFeatures = features
         , loadedTree = tree
         }
+
+loadDecisionTreeByKey :: DecisionTreeModelId -> ExceptHandler LoadedModel
+loadDecisionTreeByKey modelId = do
+    decisionTreeModel <- (lift $ runDB $ get modelId) >>= getOrError "Could not find model."
+    unloadedModel <- getOrError "Could not decode model." $ decodeStrict $ encodeUtf8 $ decisionTreeModelValue decisionTreeModel
+    loadModel unloadedModel
 
 loadFeature :: Polygon -> Entity Frame -> ExceptHandler Feature
 loadFeature polygon (Entity frameId frame) = do

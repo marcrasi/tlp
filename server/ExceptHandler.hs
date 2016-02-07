@@ -1,11 +1,9 @@
 module ExceptHandler
   ( ExceptHandler
   , getOrError
-  , exceptHandler
+  , errorToInternalServer
   , module Control.Monad.Except
   ) where
-
-import Application
 
 import Import
 import Control.Monad.Except
@@ -16,5 +14,9 @@ getOrError :: Text -> Maybe a -> ExceptHandler a
 getOrError message (Just value) = return value
 getOrError message Nothing = throwError message
 
-exceptHandler :: ExceptHandler a -> IO (Either Text a)
-exceptHandler = handler . runExceptT
+errorToInternalServer :: ExceptHandler a -> Handler a
+errorToInternalServer exceptHandler = do
+    result <- runExceptT exceptHandler
+    case result of
+        Left error -> invalidArgs [error]
+        Right success -> return success

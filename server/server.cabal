@@ -23,6 +23,7 @@ library
                      Handler.Common
                      Handler.Home
                      Handler.Comment
+                     Handler.DecisionTreeLabels
                      Handler.Directions
                      Handler.FrameRequests
                      Handler.Frames
@@ -32,6 +33,16 @@ library
                      VideoDownload.Download
                      VideoDownload.ImportFrame
                      VideoDownload.Urls
+                     ExceptHandler
+                     Polygon
+                     Image.Loader
+                     RegionOccupancy.DecisionTree.Model
+                     RegionOccupancy.DecisionTree.Train
+                     RegionOccupancy.Example
+                     RegionOccupancy.ExampleLoader
+                     RegionOccupancy.ExampleSelector
+                     RegionOccupancy.Feature
+                     RegionOccupancy.OccupancyLabel
 
     if flag(dev) || flag(library-only)
         cpp-options:   -DDEVELOPMENT
@@ -101,6 +112,8 @@ library
                  , cryptohash
                  , conduit-extra
                  , http-types
+                 , mtl
+                 , scientific
 
 executable         server
     if flag(library-only)

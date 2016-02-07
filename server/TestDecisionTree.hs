@@ -13,14 +13,16 @@ main = do
     result <- exceptHandler testDecisionTree
     print $ show result
 
-testDecisionTree :: ExceptHandler String
+testDecisionTree :: ExceptHandler Text
 testDecisionTree = do
     currentTime <- liftIO $ getCurrentTime
-    let so = defaultSelectionOptions { endTime = currentTime, exampleCount = 200 }
+    let so = defaultSelectionOptions { endTime = currentTime, exampleCount = 400 }
     let regionId = toSqlKey 7
     region <- (lift $ runDB $ get regionId) >>= getOrError "Could not find region."
     polygon <- getOrError "Could not decode polygon." $ decodeStrict $ encodeUtf8 $ regionValue region
     examples <- selectExamples so regionId
     let loadedModel = train defaultTrainOptions regionId polygon examples
     let unloadedModel = unloadModel loadedModel
-    return $ show unloadedModel
+    let modelValue = decodeUtf8 $ toStrict $ encode unloadedModel
+    lift $ runDB $ insert $ DecisionTreeModel modelValue
+    return modelValue

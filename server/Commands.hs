@@ -70,8 +70,11 @@ processFile :: FilePath -> DirectionId -> FilePath -> Handler ()
 processFile src directionId fileName = do
     let filePath = combine src fileName
     let maybeTime = parseTimeM True defaultTimeLocale "%s" ((reverse . drop 3 . reverse . dropExtensions) fileName) :: Maybe UTCTime
-    case maybeTime of
+    importResult <- case maybeTime of
       Just time ->
         importFrame filePath directionId time
       Nothing ->
-        liftIO $ putStrLn ("Cannot read time from file name " ++ (fromString fileName))
+        return $ Left ("Cannot read time from file name " ++ (fromString fileName))
+    case importResult of
+        Left error -> liftIO $ putStrLn error
+        Right result -> return ()

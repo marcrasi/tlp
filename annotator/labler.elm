@@ -24,7 +24,7 @@ import RegionsLabler
 
 type Action
   = FrameNavigatorAction FrameNavigator.Action
-  | RegionsLablerAction Int RegionsLabler.Action 
+  | RegionsLablerAction Int RegionsLabler.Action
   | AutoSaveAction Int (AutoSave.Action Labels)
   | ReceiveAnnotation DirectionAnnotation
   | ReceiveError String
@@ -32,7 +32,7 @@ type Action
 
 type LoadedAnnotation
   = LoadingAnnotation
-  | LoadedAnnotation DirectionAnnotation 
+  | LoadedAnnotation DirectionAnnotation
 
 
 type alias Model =
@@ -40,6 +40,7 @@ type alias Model =
   , loadedAnnotation : LoadedAnnotation
   , regionsLablers : Dict Int (RegionsLabler.Model, AutoSave.Model Labels)
   , error : Maybe String
+  , autoLabelNewFrames : Bool
   }
 
 
@@ -50,8 +51,9 @@ init =
   in
     ( { frameNavigator = frameNavigatorModel
       , loadedAnnotation = LoadingAnnotation
-      , regionsLablers = Dict.empty 
+      , regionsLablers = Dict.empty
       , error = Nothing
+      , autoLabelNewFrames = False
       }
     , Effects.batch
       [ Effects.map FrameNavigatorAction frameNavigatorEffects
@@ -103,7 +105,7 @@ frameView address frame regionsLablerModel model =
     , div
         [ class "col-md-4"
         ]
-        [ sideBar address model 
+        [ sideBar address model
         ]
     ]
 
@@ -148,7 +150,7 @@ maybeInitializeRegionLabler model defaultLabels =
         Nothing ->
           let
             initialLabels2 =
-              if List.length initialLabels.labels == 0
+              if List.length initialLabels.labels == 0 && model.autoLabelNewFrames
                 then Maybe.withDefault (Labels []) defaultLabels
                 else initialLabels
             (autoSaveModel, autoSaveEffects) = AutoSave.init (saveLabels frame.id)
@@ -209,12 +211,12 @@ update action model =
             |> Maybe.map (\(_, (_, x)) -> x)
             |> Maybe.withDefault Effects.none
       in
-        ({ model | regionsLablers = updatedRegionsLablers }, Effects.map (AutoSaveAction frameId) autoSaveEffects) 
+        ({ model | regionsLablers = updatedRegionsLablers }, Effects.map (AutoSaveAction frameId) autoSaveEffects)
     AutoSaveAction frameId autoSaveAction ->
       -- TODO: Should remove successfully saved things from dict, to avoid leaking memory.
       let
         maybeUpdateResult =
-          model.regionsLablers 
+          model.regionsLablers
             |> Dict.get frameId
             |> Maybe.map (\(x, y) -> (x, AutoSave.update autoSaveAction y))
         updatedRegionsLablers =
@@ -226,7 +228,7 @@ update action model =
             |> Maybe.map (\(_, (_, x)) -> x)
             |> Maybe.withDefault Effects.none
       in
-        ({ model | regionsLablers = updatedRegionsLablers }, Effects.map (AutoSaveAction frameId) autoSaveEffects) 
+        ({ model | regionsLablers = updatedRegionsLablers }, Effects.map (AutoSaveAction frameId) autoSaveEffects)
 
 
 getDirection : Effects.Effects Action

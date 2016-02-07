@@ -52,4 +52,7 @@ VideoUrl json
     generatedAt UTCTime
     UniquePublicVideoId publicVideoId
 
+DecisionTreeModel json
+    value Text
+
  -- By default this file is used in Model.hs (which is imported by Foundation.hs)

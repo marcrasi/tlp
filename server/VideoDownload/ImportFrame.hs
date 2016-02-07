@@ -27,7 +27,7 @@ importFrame filePath directionId time = do
       Right (ImageYCbCr8 image, _) -> do
         (frameId, isNew) <- processImage filePath directionId time (toFridayRGB $ convertImage image)
         return $ Right (frameId, isNew)
-      _ -> return $ Left "Unsuppoerted image type."
+      _ -> return $ Left "Unsupported image type."
 
 processImage :: FilePath -> DirectionId -> UTCTime -> RGB -> Handler (FrameId, Bool)
 processImage filePath directionId time image = do

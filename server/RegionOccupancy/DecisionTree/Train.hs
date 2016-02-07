@@ -1,4 +1,4 @@
-module RegionOccupancy.DecisionTree.Train where
+module RegionOccupancy.DecisionTree.Train (TrainOptions(..), defaultTrainOptions, train, decide) where
 
 import Import
 
@@ -19,8 +19,8 @@ data TrainOptions = TrainOptions
 
 defaultTrainOptions :: TrainOptions
 defaultTrainOptions = TrainOptions
-    { featurePerLabelCount = 10
-    , treeDepth = 3
+    { featurePerLabelCount = 20
+    , treeDepth = 5
     }
 
 class ProcessedExample a where
@@ -55,13 +55,14 @@ instance (Labeled a) => Labeled (a, b) where
 getFeatureValue :: (ProcessedExample a) => Int -> a -> Double
 getFeatureValue index example = getFeatureValues example V.! index
 
-{-
-decide :: (ProcessedExample a) => DecisionTree -> a -> OccupancyLabel
-decide (Decide label) _ = label
-decide (SwitchDotFrame index threshold lower _) example
-    | getFeatureValue index example < threshold = decide lower example
-decide (SwitchDotFrame _ _ _ higher) example = decide higher example
--}
+decide :: (Example a) => LoadedModel -> a -> OccupancyLabel
+decide (LoadedModel _ features tree) example =
+  decide' tree $ processExample features example
+
+decide' (Decide label) _ = label
+decide' (SwitchDotFrame index threshold lowTree _) example
+    | getFeatureValue index example < threshold = decide' lowTree example
+decide' (SwitchDotFrame _ _ _ highTree) example = decide' highTree example
 
 processExample :: (Example a) => [Feature] -> a -> UnlabeledProcessedExample
 processExample features example =
@@ -76,12 +77,47 @@ processLabeledExample features example =
 
 train :: (Example a, Labeled a) => TrainOptions -> RegionId -> Polygon -> [a] -> LoadedModel
 train (TrainOptions featurePerLabelCount treeDepth) regionId polygon examples =
-    LoadedModel regionId features tree
+    pruneModel $ LoadedModel regionId features tree
   where
     featureFrames = selectFeatures featurePerLabelCount examples
     features = map (makeFeature polygon) featureFrames
     processedExamples = map (processLabeledExample features) examples
     tree = train' processedExamples treeDepth
+
+pruneModel :: LoadedModel -> LoadedModel
+pruneModel (LoadedModel regionId features tree) =
+    LoadedModel regionId prunedFeatures prunedTree
+  where
+    usedFeatureIndexes = computeOneIntegerPerKey $ sort $ computeUsedFeatureIndexes tree
+    prunedFeatures = computePrunedFeatures 0 usedFeatureIndexes features
+    prunedTree = mapIndexes (usedFeatureIndexes M.!) tree
+
+mapIndexes :: (Int -> Int) -> DecisionTree -> DecisionTree
+mapIndexes f (Decide label) = Decide label
+mapIndexes f (SwitchDotFrame index threshold lowTree highTree) =
+    SwitchDotFrame (f index) threshold (mapIndexes f lowTree) (mapIndexes f highTree)
+
+computePrunedFeatures :: Int -> M.Map Int Int -> [a] -> [a]
+computePrunedFeatures _ _ [] = []
+computePrunedFeatures index usedFeatureIndexes (x : xs)
+    | member index usedFeatureIndexes = x : remainingPrunedFeatures
+    | otherwise = remainingPrunedFeatures
+  where
+    remainingPrunedFeatures = computePrunedFeatures (index + 1) usedFeatureIndexes xs
+
+computeUsedFeatureIndexes :: DecisionTree -> [Int]
+computeUsedFeatureIndexes (Decide _) = []
+computeUsedFeatureIndexes (SwitchDotFrame index _ lowTree highTree) =
+    index : (computeUsedFeatureIndexes lowTree ++ computeUsedFeatureIndexes highTree)
+
+computeOneIntegerPerKey :: (Ord k) => [k] -> M.Map k Int
+computeOneIntegerPerKey keys = computeOneIntegerPerKey' 0 (M.fromList []) keys
+
+computeOneIntegerPerKey' :: (Ord k) => Int -> M.Map k Int -> [k] -> M.Map k Int
+computeOneIntegerPerKey' _ startMap [] = startMap
+computeOneIntegerPerKey' startInteger startMap (x : xs)
+    | member x startMap = computeOneIntegerPerKey' startInteger startMap xs
+    | otherwise = computeOneIntegerPerKey' (startInteger + 1) (M.insert x startInteger startMap) xs
 
 train' :: (ProcessedExample a, Labeled a) => [a] -> Int -> DecisionTree
 train' [] _ = Decide Unoccupied
