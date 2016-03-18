@@ -1,6 +1,7 @@
 module Polygon
     ( Polygon
     , chopImage
+    , maskImage
     ) where
 
 import Import
@@ -108,6 +109,30 @@ chopImage unscaledPolygon image =
             I.index croppedImage pt
           else
             I.RGBPixel 0 0 0
+  where
+    -- TODO: Figure out how to get rid of all the duplicated scaling
+    -- constants around the code.
+    polygon = zoom 0.5 unscaledPolygon
+
+-- Terribly assumes that the image has already been thingied.
+maskImage :: Polygon -> I.RGB -> I.DelayedMask I.RGBPixel
+maskImage unscaledPolygon croppedImage =
+    let
+      rect = boundingRect polygon
+      Rect origin _ = rect
+      Point ox oy = origin
+      translatedPolygon = setOrigin origin polygon
+      f = (\pt ->
+        let
+          S.Z S.:. y S.:. x = pt
+          point = Point (fromIntegral x + 0.5) (fromIntegral y + 0.5)
+        in
+          if containsPoint translatedPolygon point then
+            Just $ I.index croppedImage pt
+          else
+            Nothing)
+   in
+      I.DelayedMask (I.manifestSize croppedImage) f
   where
     -- TODO: Figure out how to get rid of all the duplicated scaling
     -- constants around the code.

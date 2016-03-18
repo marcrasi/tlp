@@ -221,19 +221,4 @@ colorGaussianBlur radius image =
     in
       combineChannels red green blue
 
-redChannel :: RGB -> Grey
-redChannel = I.map (GreyPixel . rgbRed)
 
-greenChannel :: RGB -> Grey
-greenChannel = I.map (GreyPixel . rgbGreen)
-
-blueChannel :: RGB -> Grey
-blueChannel = I.map (GreyPixel . rgbBlue)
-
-combineChannels :: Grey -> Grey -> Grey -> RGB
-combineChannels red green blue =
-    I.fromFunction (I.shape red) $ \pt ->
-      RGBPixel (pixelValue $ I.index red pt) (pixelValue $ I.index green pt) (pixelValue $ I.index blue pt)
-
-pixelValue :: GreyPixel -> Word8
-pixelValue (GreyPixel v) = v

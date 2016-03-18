@@ -6,7 +6,7 @@ module ExceptHandler
   ) where
 
 import Import
-import Control.Monad.Except
+import Control.Monad.Except (ExceptT, throwError, runExceptT)
 
 type ExceptHandler = ExceptT Text Handler
 

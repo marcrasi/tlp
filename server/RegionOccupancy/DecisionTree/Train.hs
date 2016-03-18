@@ -19,8 +19,8 @@ data TrainOptions = TrainOptions
 
 defaultTrainOptions :: TrainOptions
 defaultTrainOptions = TrainOptions
-    { featurePerLabelCount = 20
-    , treeDepth = 5
+    { featurePerLabelCount = 10
+    , treeDepth = 1
     }
 
 class ProcessedExample a where
